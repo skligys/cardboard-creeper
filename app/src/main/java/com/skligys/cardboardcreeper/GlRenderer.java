@@ -15,12 +15,11 @@ class GlRenderer implements GLSurfaceView.Renderer {
   private final float[] viewMatrix = new float[16];
   private final float[] viewProjectionMatrix = new float[16];
 
-  // Shapes.
-  private final Cube cube;
+  private final World world;
 
   GlRenderer(Resources resources) {
     this.resources = resources;
-    this.cube = new Cube();
+    world = new World();
   }
 
   @Override
@@ -35,13 +34,15 @@ class GlRenderer implements GLSurfaceView.Renderer {
     GLES20.glEnable(GLES20.GL_CULL_FACE);
     GLES20.glCullFace(GLES20.GL_BACK);
 
+    // Stationary camera is located at (0, 0) height 2.1 (feet to eye 1.6 + 0.5 displacement from
+    // block feet are on), looking in negative z axis direction.
     Matrix.setLookAtM(viewMatrix, 0,
-        0.0f, 0.0f, 4.0f,
-        0.0f, 0.0f, 0.0f,
+        0.0f, 2.1f, 0.0f,
+        0.0f, 2.1f, -1.0f,
         0.0f, 1.0f, 0.0f);
 
     // Notify shapes.
-    cube.surfaceCreated(resources);
+    world.surfaceCreated(resources);
   }
 
   @Override
@@ -57,6 +58,6 @@ class GlRenderer implements GLSurfaceView.Renderer {
   public void onDrawFrame(GL10 unused) {
     GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
     // Draw shapes.
-    cube.draw(viewProjectionMatrix);
+    world.draw(viewProjectionMatrix);
   }
 }

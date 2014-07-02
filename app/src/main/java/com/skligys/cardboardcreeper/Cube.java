@@ -99,11 +99,11 @@ class Cube {
     GLES20.glUniform1i(textureHandle, 0);
   }
 
-  void draw(float[] viewProjectionMatrix) {
+  void draw(float[] viewProjectionMatrix, float x, float y, float z) {
     GLES20.glUseProgram(program);
 
-    float angle = (SystemClock.uptimeMillis() / 15) % 360;
-    Matrix.setRotateM(modelMatrix, 0, angle, 1.0f, 1.0f, 1.0f);
+    Matrix.setIdentityM(modelMatrix, 0);
+    Matrix.translateM(modelMatrix, 0, x, y, z);
     Matrix.multiplyMM(mvpMatrix, 0, viewProjectionMatrix, 0, modelMatrix, 0);
 
     GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, mvpMatrix, 0);
