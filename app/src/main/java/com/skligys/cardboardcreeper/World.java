@@ -8,7 +8,7 @@ import java.util.List;
 
 /** Holds blocks. */
 class World {
-  // Very silly stairs as far as an eye can see.
+  // A hill on the left.
   private static final short[] BLOCKS = {
       -6, 0, 0,
       -5, 0, 0,
