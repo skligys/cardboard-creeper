@@ -1,6 +1,7 @@
 package com.skligys.cardboardcreeper;
 
 import android.content.res.Resources;
+import android.opengl.Matrix;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,6 +10,48 @@ import java.util.List;
 class World {
   // Very silly stairs as far as an eye can see.
   private static final short[] BLOCKS = {
+      -6, 0, 0,
+      -5, 0, 0,
+      -4, 0, 0,
+      -3, 0, 0,
+      -2, 0, 0,
+      -1, 0, 0,
+      0, 0, 0,
+      1, 0, 0,
+      2, 0, 0,
+      3, 0, 0,
+      4, 0, 0,
+      5, 0, 0,
+      6, 0, 0,
+
+      -6, 0, -1,
+      -5, 0, -1,
+      -4, 0, -1,
+      -3, 0, -1,
+      -2, 0, -1,
+      -1, 0, -1,
+      0, 0, -1,
+      1, 0, -1,
+      2, 0, -1,
+      3, 0, -1,
+      4, 0, -1,
+      5, 0, -1,
+      6, 0, -1,
+
+      -6, 0, -2,
+      -5, 0, -2,
+      -4, 0, -2,
+      -3, 0, -2,
+      -2, 0, -2,
+      -1, 0, -2,
+      0, 0, -2,
+      1, 0, -2,
+      2, 0, -2,
+      3, 0, -2,
+      4, 0, -2,
+      5, 0, -2,
+      6, 0, -2,
+
       -6, 0, -3,
       -5, 0, -3,
       -4, 0, -3,
@@ -101,7 +144,10 @@ class World {
   };
 
   private final Cube cube;
-  private final List<BlockLocation> blocks = new ArrayList<BlockLocation>();
+  /** Center points of blocks. */
+  private final List<Point3> blocks = new ArrayList<Point3>();
+  private final Eye eye = new Eye();
+  private final float[] viewProjectionMatrix = new float[16];
 
   World() {
     cube = new Cube();
@@ -111,7 +157,7 @@ class World {
           "Blocks should contain triples of coords but length was: %d", BLOCKS.length);
     }
     for (int i = 0; i < BLOCKS.length; i += 3) {
-      blocks.add(new BlockLocation(BLOCKS[i], BLOCKS[i + 1], BLOCKS[i + 2]));
+      blocks.add(new Point3(BLOCKS[i], BLOCKS[i + 1], BLOCKS[i + 2]));
     }
   }
 
@@ -119,9 +165,14 @@ class World {
     cube.surfaceCreated(resources);
   }
 
-  public void draw(float[] viewProjectionMatrix) {
-    for (BlockLocation block : blocks) {
+  public void draw(float[] projectionMatrix) {
+    Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, eye.viewMatrix(), 0);
+    for (Point3 block : blocks) {
       cube.draw(viewProjectionMatrix, block.x, block.y, block.z);
     }
+  }
+
+  public void drag(float dx, float dy) {
+    eye.rotate(dx, dy);
   }
 }

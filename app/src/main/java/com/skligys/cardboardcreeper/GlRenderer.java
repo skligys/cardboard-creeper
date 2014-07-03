@@ -10,11 +10,7 @@ import javax.microedition.khronos.opengles.GL10;
 
 class GlRenderer implements GLSurfaceView.Renderer {
   private final Resources resources;
-
   private final float[] projectionMatrix = new float[16];
-  private final float[] viewMatrix = new float[16];
-  private final float[] viewProjectionMatrix = new float[16];
-
   private final World world;
 
   GlRenderer(Resources resources) {
@@ -34,13 +30,6 @@ class GlRenderer implements GLSurfaceView.Renderer {
     GLES20.glEnable(GLES20.GL_CULL_FACE);
     GLES20.glCullFace(GLES20.GL_BACK);
 
-    // Stationary camera is located at (0, 0) height 2.1 (feet to eye 1.6 + 0.5 displacement from
-    // block feet are on), looking in negative z axis direction.
-    Matrix.setLookAtM(viewMatrix, 0,
-        0.0f, 2.1f, 0.0f,
-        0.0f, 2.1f, -1.0f,
-        0.0f, 1.0f, 0.0f);
-
     // Notify shapes.
     world.surfaceCreated(resources);
   }
@@ -50,14 +39,17 @@ class GlRenderer implements GLSurfaceView.Renderer {
     GLES20.glViewport(0, 0, width, height);
 
     float ratio = (float) width / height;
-    Matrix.frustumM(projectionMatrix, 0, -ratio, ratio, -1, 1, 1, 15);
-    Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, viewMatrix, 0);
+    Matrix.frustumM(projectionMatrix, 0, -ratio, ratio, -1.0f, 1.0f, 1.0f, 15.0f);
   }
 
   @Override
   public void onDrawFrame(GL10 unused) {
     GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
     // Draw shapes.
-    world.draw(viewProjectionMatrix);
+    world.draw(projectionMatrix);
+  }
+
+  public void drag(float dx, float dy) {
+    world.drag(dx, dy);
   }
 }

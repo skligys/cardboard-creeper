@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.pm.ConfigurationInfo;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
 
 public class MainActivity extends Activity {
   private GLSurfaceView view;
@@ -16,7 +17,10 @@ public class MainActivity extends Activity {
 
     checkForOpenGlEs20Support();
 
-    view = new MainView(this);
+    DisplayMetrics displayMetrics = new DisplayMetrics();
+    getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+
+    view = new MainView(this, displayMetrics.density);
     setContentView(view);
   }
 
@@ -41,11 +45,4 @@ public class MainActivity extends Activity {
     }
   }
 
-  private static class MainView extends GLSurfaceView {
-    public MainView(Context context){
-      super(context);
-      setEGLContextClientVersion(2);
-      setRenderer(new GlRenderer(this.getResources()));
-    }
-  }
 }
