@@ -2,6 +2,7 @@ package com.skligys.cardboardcreeper;
 
 import android.content.res.Resources;
 import android.opengl.Matrix;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -138,6 +139,7 @@ class World {
   private final List<Point3> blocks = new ArrayList<Point3>();
   private final Eye eye = new Eye();
   private final float[] viewProjectionMatrix = new float[16];
+  private final TickInterval tickInterval;
 
   World() {
     cube = new Cube();
@@ -149,6 +151,7 @@ class World {
     for (int i = 0; i < BLOCKS.length; i += 3) {
       blocks.add(new Point3(BLOCKS[i], BLOCKS[i + 1], BLOCKS[i + 2]));
     }
+    tickInterval = new TickInterval();
   }
 
   public void surfaceCreated(Resources resources) {
@@ -156,6 +159,12 @@ class World {
   }
 
   public void draw(float[] projectionMatrix) {
+    float dt = tickInterval.tick();
+    float fps = tickInterval.fps();
+    if (fps > 0.0f) {
+      Log.i("World", "FPS: " + fps);
+    }
+
     Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, eye.viewMatrix(), 0);
     for (Point3 block : blocks) {
       cube.draw(viewProjectionMatrix, block.x, block.y, block.z);
