@@ -27,10 +27,10 @@ class Eye {
     return viewMatrix;
   }
 
-  private static final float ROTATION_SPEED = 0.15f;
+  private static final float ROTATION_SPEED = 0.2f;
 
   public void rotate(float dx, float dy) {
-    float newX = rotation.x + dx * ROTATION_SPEED;
+    float newX = rotation.x + dx * (-ROTATION_SPEED);
     float newY = clamp(rotation.y + dy * ROTATION_SPEED, -90.0f, 90.0f);
     rotation = new Point2(newX, newY);
 
@@ -41,19 +41,23 @@ class Eye {
     return Math.max(min, Math.min(max, value));
   }
 
-//  private static final float PI = 3.14159265358979323846f;
-//  private static final float DEGREES_TO_RADIANS = 180.0f / PI;
-
   private void computeViewMatrix() {
-    Matrix.setIdentityM(viewMatrix, 0);
+    float vert = cosF(rotation.y);
+    float dx = cosF(rotation.x - 90.0f) * vert;
+    float dy = sinF(rotation.y);
+    float dz = sinF(rotation.x - 90.0f) * vert;
+    Matrix.setLookAtM(viewMatrix, 0, position.x, position.y, position.z,
+        position.x + dx, position.y + dy, position.z + dz, 0.0f, 1.0f, 0.0f);
+  }
 
-    Matrix.rotateM(viewMatrix, 0, rotation.x, 0.0f, 1.0f, 0.0f);
+  private static final float PI = 3.14159265358979323846f;
+  private static final float DEGREES_TO_RADIANS = PI / 180.0f;
 
-// TODO: Figure out vertical eye rotation.  The following bobs up and down violently.
-//    float xRadians = rotation.x * DEGREES_TO_RADIANS;
-//    Matrix.rotateM(viewMatrix, 0, -rotation.y,
-//        (float) Math.cos(xRadians), 0.0f, (float) Math.sin(xRadians));
+  private static float sinF(float degrees) {
+    return (float) Math.sin(degrees * DEGREES_TO_RADIANS);
+  }
 
-    Matrix.translateM(viewMatrix, 0, -position.x, -position.y, -position.z);
+  private static float cosF(float degrees) {
+    return (float) Math.cos(degrees * DEGREES_TO_RADIANS);
   }
 }
