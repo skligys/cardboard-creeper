@@ -134,11 +134,16 @@ class World {
       6, 0, -7,
   };
 
+  private static final float WALKING_SPEED = 5.0f;
+
+  /** OpenGL support for drawing grass blocks. */
   private final Cube cube;
   /** Center points of blocks. */
   private final List<Point3> blocks = new ArrayList<Point3>();
   private final Eye eye = new Eye();
+  /** Pre-allocated temporary matrix. */
   private final float[] viewProjectionMatrix = new float[16];
+  private boolean walking = false;
   private final TickInterval tickInterval;
 
   World() {
@@ -146,7 +151,7 @@ class World {
 
     if (BLOCKS.length % 3 != 0) {
       ExceptionHelper.failIllegalArgument(
-          "Blocks should contain triples of coords but length was: %d", BLOCKS.length);
+          "Blocks should contain triples of coordinates but length was: %d", BLOCKS.length);
     }
     for (int i = 0; i < BLOCKS.length; i += 3) {
       blocks.add(new Point3(BLOCKS[i], BLOCKS[i + 1], BLOCKS[i + 2]));
@@ -154,16 +159,19 @@ class World {
     tickInterval = new TickInterval();
   }
 
-  public void surfaceCreated(Resources resources) {
+  void surfaceCreated(Resources resources) {
     cube.surfaceCreated(resources);
   }
 
-  public void draw(float[] projectionMatrix) {
-    float dt = tickInterval.tick();
+  void draw(float[] projectionMatrix) {
+    // This has to be first to have up to date tick timestamp for FPS computation.
+    float dt = Math.min(tickInterval.tick(), 0.2f);
     float fps = tickInterval.fps();
     if (fps > 0.0f) {
       Log.i("World", "FPS: " + fps);
     }
+
+    eye.move(motionVector().times(dt * WALKING_SPEED));
 
     Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, eye.viewMatrix(), 0);
     for (Point3 block : blocks) {
@@ -171,7 +179,22 @@ class World {
     }
   }
 
-  public void drag(float dx, float dy) {
+  private static final Point3 ZERO_VECTOR = new Point3(0.0f, 0.0f, 0.0f);
+
+  private Point3 motionVector() {
+    if (!walking) {
+      return ZERO_VECTOR;
+    }
+
+    float xAngle = eye.rotation().x - 90.0f;
+    return new Point3(Floats.cos(xAngle), 0.0f, Floats.sin(xAngle));
+  }
+
+  void drag(float dx, float dy) {
     eye.rotate(dx, dy);
+  }
+
+  void walk(boolean start) {
+    walking = start;
   }
 }

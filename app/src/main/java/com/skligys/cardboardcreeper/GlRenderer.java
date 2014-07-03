@@ -49,7 +49,11 @@ class GlRenderer implements GLSurfaceView.Renderer {
     world.draw(projectionMatrix);
   }
 
-  public void drag(float dx, float dy) {
+  void drag(float dx, float dy) {
     world.drag(dx, dy);
+  }
+
+  void walk(boolean start) {
+    world.walk(start);
   }
 }
