@@ -34,12 +34,20 @@ class GlRenderer implements GLSurfaceView.Renderer {
     world.surfaceCreated(resources);
   }
 
+  private static float FIELD_OF_VIEW = (float) Math.toRadians(70.0f);  // radians
+  private static float NEAR_PLANE = 0.1f;
+  private static float FAR_PLANE = 60.0f;
+
   @Override
   public void onSurfaceChanged(GL10 unused, int width, int height) {
     GLES20.glViewport(0, 0, width, height);
 
-    float ratio = (float) width / height;
-    Matrix.frustumM(projectionMatrix, 0, -ratio, ratio, -1.0f, 1.0f, 1.0f, 15.0f);
+    float aspect = (float) width / height;
+    float top = NEAR_PLANE * (float) Math.tan(FIELD_OF_VIEW / 2.0f);
+    float bottom = -top;
+    float left = bottom * aspect;
+    float right = -left;
+    Matrix.frustumM(projectionMatrix, 0, left, right, bottom, top, NEAR_PLANE, FAR_PLANE);
   }
 
   @Override
