@@ -4,8 +4,8 @@ import android.content.res.Resources;
 import android.opengl.Matrix;
 import android.util.Log;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /** Holds blocks. */
 class World {
@@ -139,7 +139,7 @@ class World {
   /** OpenGL support for drawing grass blocks. */
   private final Cube cube;
   /** Center points of blocks. */
-  private final List<Point3> blocks = new ArrayList<Point3>();
+  private final Set<Point3Int> blocks = new HashSet<Point3Int>();
   private final Eye eye = new Eye();
   /** Pre-allocated temporary matrix. */
   private final float[] viewProjectionMatrix = new float[16];
@@ -154,7 +154,7 @@ class World {
           "Blocks should contain triples of coordinates but length was: %d", BLOCKS.length);
     }
     for (int i = 0; i < BLOCKS.length; i += 3) {
-      blocks.add(new Point3(BLOCKS[i], BLOCKS[i + 1], BLOCKS[i + 2]));
+      blocks.add(new Point3Int(BLOCKS[i], BLOCKS[i + 1], BLOCKS[i + 2]));
     }
     tickInterval = new TickInterval();
   }
@@ -174,7 +174,7 @@ class World {
     eye.move(motionVector().times(dt * WALKING_SPEED));
 
     Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, eye.viewMatrix(), 0);
-    for (Point3 block : blocks) {
+    for (Point3Int block : blocks) {
       cube.draw(viewProjectionMatrix, block.x, block.y, block.z);
     }
   }
