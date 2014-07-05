@@ -9,8 +9,8 @@ class Physics {
   private static final String TAG = "Physics";
 
   private static final float STEVE_WALKING_SPEED = 4.317f;  // m/s
-  private static final float GRAVITY = 9.8f;  // m/s^2
-  private static final float TERMINAL_VELOCITY = 45.0f; // m/s == 162 km/h
+  private static final float GRAVITY = 32.0f;  // m/s^2
+  private static final float TERMINAL_VELOCITY = 78.4f; // m/s
   private static final float MAX_JUMP_HEIGHT = 1.252f;  // m
   private static final float JUMP_SPEED = Floats.sqrt(2.0f * GRAVITY * MAX_JUMP_HEIGHT);
 
@@ -91,17 +91,17 @@ class Physics {
 
     float overlapX = Math.min(block.x + 0.5f, hit.maxX) - Math.max(block.x - 0.5f, hit.minX);
     if (overlapX < 0.0f) {
-      throw new IllegalStateException();
+      overlapX = 0.0f;
     }
 
     float overlapY = Math.min(block.y + 0.5f, hit.maxY) - Math.max(block.y - 0.5f, hit.minY);
     if (overlapY < 0.0f) {
-      throw new IllegalStateException();
+      overlapY = 0.0f;
     }
 
     float overlapZ = Math.min(block.z + 0.5f, hit.maxZ) - Math.max(block.z - 0.5f, hit.minZ);
     if (overlapZ < 0.0f) {
-      throw new IllegalStateException();
+      overlapZ = 0.0f;
     }
 
     // Push out the smallest overlap, if the others are above a threshold.
