@@ -10,6 +10,8 @@ import java.util.Set;
 
 /** Holds a randomly generated hilly landscape of blocks and Steve. */
 class World {
+  private static final String TAG = "World";
+
   // World size in x and z directions.
   private final int xSize;
   private final int zSize;
@@ -19,7 +21,7 @@ class World {
   private final Set<Point3Int> blocks;
   /** Center points of exposed blocks, i.e. those not completely surrounded by other blocks. */
   private final Set<Point3Int> exposedBlocks;
-  private final TickInterval tickInterval = new TickInterval();
+  private final Performance performance = new Performance();
   private final Steve steve = new Steve();
   private final Physics physics = new Physics();
   /** Pre-allocated temporary matrix. */
@@ -121,23 +123,30 @@ class World {
 
   void draw(float[] projectionMatrix) {
     // This has to be first to have up to date tick timestamp for FPS computation.
-    float dt = Math.min(tickInterval.tick(), 0.2f);
-    float fps = tickInterval.fps();
-    if (fps > 0.0f) {
-      Point3 position = steve.position();
-      String status = String.format("%f FPS, (%f, %f, %f), %d / %d",
-          fps, position.x, position.y, position.z, exposedBlocks.size(), blocks.size());
-      Log.i("World", status);
-    }
+    float dt = Math.min(performance.tick(), 0.2f);
 
+    performance.startPhysics();
     // Physics needs all blocks in the world to compute collisions.
     physics.updateEyePosition(steve, dt, blocks);
+    performance.endPhysics();
 
+    performance.startRendering();
     Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, steve.viewMatrix(), 0);
     // Rendering however only shows exposedBlocks.
     for (Point3Int block : exposedBlocks) {
       cube.draw(viewProjectionMatrix, block.x, block.y, block.z);
     }
+    performance.endRendering();
+
+    float fps = performance.fps();
+    if (fps > 0.0f) {
+      Point3 position = steve.position();
+      String status = String.format("%f FPS, (%f, %f, %f), %d / %d, physics: %dms, render: %dms",
+          fps, position.x, position.y, position.z, exposedBlocks.size(), blocks.size(),
+          performance.physicsSpent(), performance.renderSpent());
+      Log.i(TAG, status);
+    }
+    performance.done();
   }
 
   void drag(float dx, float dy) {
