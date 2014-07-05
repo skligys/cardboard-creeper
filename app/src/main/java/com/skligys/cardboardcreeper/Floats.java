@@ -13,4 +13,8 @@ class Floats {
   static float cos(float degrees) {
     return (float) Math.cos(degrees * DEGREES_TO_RADIANS);
   }
+
+  static float sqrt(float f) {
+    return (float) Math.sqrt(f);
+  }
 }

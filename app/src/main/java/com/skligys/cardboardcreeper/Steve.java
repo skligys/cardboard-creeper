@@ -83,6 +83,35 @@ class Steve {
     return new Hitbox(minX, minY, minZ, maxX, maxY, maxZ);
   }
 
+  /**
+   * Given Steve's eye position, returns a set of blocks corresponding to 4 points around his knees.
+   */
+  Set<Point3Int> kneeBlocks(Point3 eyePosition) {
+    Hitbox hit = hitbox(eyePosition);
+    float kneeY = 0.5f * (hit.minY + hit.maxY);
+
+    Set<Point3Int> result = new HashSet<Point3Int>();
+    result.add(new Point3Int(hit.minX, kneeY, hit.minZ));
+    result.add(new Point3Int(hit.maxX, kneeY, hit.minZ));
+    result.add(new Point3Int(hit.minX, kneeY, hit.maxZ));
+    result.add(new Point3Int(hit.maxX, kneeY, hit.maxZ));
+    return result;
+  }
+
+  /**
+   * Given Steve's eye position, returns a set of blocks corresponding to 4 points around his head.
+   */
+  Set<Point3Int> headBlocks(Point3 eyePosition) {
+    Hitbox hit = hitbox(eyePosition);
+
+    Set<Point3Int> result = new HashSet<Point3Int>();
+    result.add(new Point3Int(hit.minX, hit.maxY, hit.minZ));
+    result.add(new Point3Int(hit.maxX, hit.maxY, hit.minZ));
+    result.add(new Point3Int(hit.minX, hit.maxY, hit.maxZ));
+    result.add(new Point3Int(hit.maxX, hit.maxY, hit.maxZ));
+    return result;
+  }
+
   public float[] viewMatrix() {
     return eye.viewMatrix();
   }

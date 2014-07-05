@@ -11,6 +11,10 @@ import java.util.Set;
 /** Holds a randomly generated hilly landscape of blocks and Steve. */
 class World {
   private static final String TAG = "World";
+  /**
+   * Do several physics iterations per frame to avoid falling through the floor when dt is large.
+   */
+  private static final int PHYSICS_ITERATIONS_PER_FRAME = 5;
 
   // World size in x and z directions.
   private final int xSize;
@@ -126,8 +130,11 @@ class World {
     float dt = Math.min(performance.tick(), 0.2f);
 
     performance.startPhysics();
-    // Physics needs all blocks in the world to compute collisions.
-    physics.updateEyePosition(steve, dt, blocks);
+    // Do several physics iterations per frame to avoid falling through the floor when dt is large.
+    for (int i = 0; i < PHYSICS_ITERATIONS_PER_FRAME; ++i) {
+      // Physics needs all blocks in the world to compute collisions.
+      physics.updateEyePosition(steve, dt / PHYSICS_ITERATIONS_PER_FRAME, blocks);
+    }
     performance.endPhysics();
 
     performance.startRendering();

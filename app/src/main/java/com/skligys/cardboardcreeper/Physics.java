@@ -11,6 +11,8 @@ class Physics {
   private static final float STEVE_WALKING_SPEED = 4.317f;  // m/s
   private static final float GRAVITY = 9.8f;  // m/s^2
   private static final float TERMINAL_VELOCITY = 45.0f; // m/s == 162 km/h
+  private static final float MAX_JUMP_HEIGHT = 1.252f;  // m
+  private static final float JUMP_SPEED = Floats.sqrt(2.0f * GRAVITY * MAX_JUMP_HEIGHT);
 
   void updateEyePosition(Steve steve, float dt, Set<Point3Int> blocks) {
     // Will get -1.0f on the first call, skip physics.
@@ -33,7 +35,12 @@ class Physics {
     Point3 newPosition = steve.position().plus(dxyz);
     PositionStopVertical adjusted = collisionAdjust(steve, newPosition, blocks);
     steve.setPosition(adjusted.position);
-    steve.setVerticalSpeed(adjusted.stopVertical ? 0.0f : verticalSpeed);
+
+    verticalSpeed = adjusted.stopVertical ? 0.0f : verticalSpeed;
+    if (verticalSpeed == 0.0f && shouldJump(steve, newPosition, blocks)) {
+      verticalSpeed = JUMP_SPEED;
+    }
+    steve.setVerticalSpeed(verticalSpeed);
   }
 
   private static class PositionStopVertical {
@@ -149,5 +156,23 @@ class Physics {
       float overlap = (block.z + 0.5f) - min;
       return new Point3(p.x, p.y, p.z + overlap);
     }
+  }
+
+  /**
+   * Test if Steve hit his knees on a step, i.e. knees collided with a block but head didn't.
+   * If so, auto-jump.
+   */
+  private boolean shouldJump(Steve steve, Point3 eyePosition, Set<Point3Int> blocks) {
+    return intersects(steve.kneeBlocks(eyePosition), blocks) &&
+        !intersects(steve.headBlocks(eyePosition), blocks);
+  }
+
+  private static <T> boolean intersects(Set<T> smallSet, Set<T> largeSet) {
+    for (T el : smallSet) {
+      if (largeSet.contains(el)) {
+        return true;
+      }
+    }
+    return false;
   }
 }
