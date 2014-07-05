@@ -14,9 +14,19 @@ class Steve {
    */
   private final Eye eye = new Eye(0.0f, 0.50001f + STEVE_EYE_LEVEL, 0.0f);
   private boolean walking = false;
+  /** Speed in axis y direction (up), in m/s. */
+  private float verticalSpeed = 0.0f;
 
   void walk(boolean start) {
     walking = start;
+  }
+
+  float verticalSpeed() {
+    return verticalSpeed;
+  }
+
+  public void setVerticalSpeed(float verticalSpeed) {
+    this.verticalSpeed = verticalSpeed;
   }
 
   void rotate(float dx, float dy) {

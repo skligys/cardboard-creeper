@@ -20,6 +20,10 @@ class Point3 {
     return new Point3(mult * x, mult * y, mult * z);
   }
 
+  public Point3 plusY(float dy) {
+    return new Point3(x, y + dy, z);
+  }
+
   @Override public boolean equals(Object o) {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
