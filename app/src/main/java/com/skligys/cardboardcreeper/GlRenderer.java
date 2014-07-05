@@ -34,9 +34,9 @@ class GlRenderer implements GLSurfaceView.Renderer {
     world.surfaceCreated(resources);
   }
 
-  private static float FIELD_OF_VIEW = (float) Math.toRadians(70.0f);  // radians
-  private static float NEAR_PLANE = 0.1f;
-  private static float FAR_PLANE = 60.0f;
+  private static final float FIELD_OF_VIEW = (float) Math.toRadians(70.0f);  // radians
+  private static final float NEAR_PLANE = 0.1f;
+  private static final float FAR_PLANE = 60.0f;
 
   @Override
   public void onSurfaceChanged(GL10 unused, int width, int height) {

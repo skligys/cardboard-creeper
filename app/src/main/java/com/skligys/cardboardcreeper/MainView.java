@@ -6,10 +6,10 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 
 class MainView extends GLSurfaceView {
-  final float screenDensity;
-  final GlRenderer renderer;
-  float prevX;
-  float prevY;
+  private final float screenDensity;
+  private final GlRenderer renderer;
+  private float prevX;
+  private float prevY;
 
   public MainView(Context context, float screenDensity){
     super(context);

@@ -3,11 +3,8 @@ package com.skligys.cardboardcreeper;
 import android.opengl.Matrix;
 
 class Eye {
-  /**
-   * Eye position: initially, the eye is located at (0, 0) height 2.1 (feet to eye 1.6 +
-   * 0.5 displacement from block the feet are on).
-   */
-  private Point3 position = new Point3(0.0f, 2.1f, 0.0f);
+  /** Eye position. */
+  private Point3 position;
 
   /**
    * Eye rotation.  x is rotation in degrees in the horizontal plane starting from negative z axis
@@ -19,7 +16,8 @@ class Eye {
 
   private final float[] viewMatrix = new float[16];
 
-  Eye() {
+  Eye(float x, float y, float z) {
+    this.position = new Point3(x, y, z);
     computeViewMatrix();
   }
 
@@ -27,8 +25,12 @@ class Eye {
     return viewMatrix;
   }
 
-  void move(Point3 dxyz) {
-    position = position.plus(dxyz);
+  Point3 position() {
+    return position;
+  }
+
+  void setPosition(Point3 xyz) {
+    position = xyz;
     computeViewMatrix();
   }
 

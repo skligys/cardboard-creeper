@@ -3,7 +3,6 @@ package com.skligys.cardboardcreeper;
 import android.content.res.Resources;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
-import android.os.SystemClock;
 
 import java.nio.FloatBuffer;
 import java.nio.ShortBuffer;

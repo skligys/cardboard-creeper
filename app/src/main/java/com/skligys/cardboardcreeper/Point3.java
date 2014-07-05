@@ -20,10 +20,6 @@ class Point3 {
     return new Point3(mult * x, mult * y, mult * z);
   }
 
-  Point3Int round() {
-    return new Point3Int(Math.round(x), Math.round(y), Math.round(z));
-  }
-
   @Override public boolean equals(Object o) {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;

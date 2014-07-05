@@ -44,12 +44,12 @@ class GlHelper {
    */
   private static int loadShader(int type, String glsl) {
     if (type != GLES20.GL_VERTEX_SHADER && type != GLES20.GL_FRAGMENT_SHADER) {
-      ExceptionHelper.failIllegalArgument("Unsupported shader type %d", type);
+      Exceptions.failIllegalArgument("Unsupported shader type %d", type);
     }
 
     int shader = GLES20.glCreateShader(type);
     if (shader == 0) {
-      ExceptionHelper.fail("Failed to create a shader of type %d", type);
+      Exceptions.fail("Failed to create a shader of type %d", type);
     }
 
     GLES20.glShaderSource(shader, glsl);
@@ -62,7 +62,7 @@ class GlHelper {
       GLES20.glGetShaderiv(shader, GLES20.GL_INFO_LOG_LENGTH, status, 0);
       Log.e(TAG, "Error compiling shader: " + GLES20.glGetShaderInfoLog(shader));
       GLES20.glDeleteShader(shader);
-      ExceptionHelper.fail("Failed to compile a shader of type %d, status: %d", type, status[0]);
+      Exceptions.fail("Failed to compile a shader of type %d, status: %d", type, status[0]);
     }
 
     return shader;
@@ -170,7 +170,7 @@ class GlHelper {
     options.inScaled = false;   // No pre-scaling
     Bitmap result = BitmapFactory.decodeResource(resources, resourceId, options);
     if (result == null) {
-      ExceptionHelper.fail("Failed to decode bitmap from resource %d", resourceId);
+      Exceptions.fail("Failed to decode bitmap from resource %d", resourceId);
     }
     return result;
   }

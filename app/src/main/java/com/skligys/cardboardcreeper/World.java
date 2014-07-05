@@ -134,29 +134,24 @@ class World {
       6, 0, -7,
   };
 
-  private static final float WALKING_SPEED = 5.0f;
-
   /** OpenGL support for drawing grass blocks. */
-  private final Cube cube;
+  private final Cube cube = new Cube();
   /** Center points of blocks. */
   private final Set<Point3Int> blocks = new HashSet<Point3Int>();
-  private final Eye eye = new Eye();
+  private final TickInterval tickInterval = new TickInterval();
+  private final Steve steve = new Steve();
+  private final Physics physics = new Physics();
   /** Pre-allocated temporary matrix. */
   private final float[] viewProjectionMatrix = new float[16];
-  private boolean walking = false;
-  private final TickInterval tickInterval;
 
   World() {
-    cube = new Cube();
-
     if (BLOCKS.length % 3 != 0) {
-      ExceptionHelper.failIllegalArgument(
+      Exceptions.failIllegalArgument(
           "Blocks should contain triples of coordinates but length was: %d", BLOCKS.length);
     }
     for (int i = 0; i < BLOCKS.length; i += 3) {
       blocks.add(new Point3Int(BLOCKS[i], BLOCKS[i + 1], BLOCKS[i + 2]));
     }
-    tickInterval = new TickInterval();
   }
 
   void surfaceCreated(Resources resources) {
@@ -171,30 +166,19 @@ class World {
       Log.i("World", "FPS: " + fps);
     }
 
-    eye.move(motionVector().times(dt * WALKING_SPEED));
+    physics.updateEyePosition(steve, dt, blocks);
 
-    Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, eye.viewMatrix(), 0);
+    Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, steve.viewMatrix(), 0);
     for (Point3Int block : blocks) {
       cube.draw(viewProjectionMatrix, block.x, block.y, block.z);
     }
   }
 
-  private static final Point3 ZERO_VECTOR = new Point3(0.0f, 0.0f, 0.0f);
-
-  private Point3 motionVector() {
-    if (!walking) {
-      return ZERO_VECTOR;
-    }
-
-    float xAngle = eye.rotation().x - 90.0f;
-    return new Point3(Floats.cos(xAngle), 0.0f, Floats.sin(xAngle));
-  }
-
   void drag(float dx, float dy) {
-    eye.rotate(dx, dy);
+    steve.rotate(dx, dy);
   }
 
   void walk(boolean start) {
-    walking = start;
+    steve.walk(start);
   }
 }

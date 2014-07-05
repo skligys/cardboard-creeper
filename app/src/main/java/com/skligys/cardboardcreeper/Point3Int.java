@@ -12,16 +12,10 @@ class Point3Int {
     this.z = z;
   }
 
-  Point3Int plus(Point3Int p2) {
-    return new Point3Int(x + p2.x, y + p2.y, z + p2.z);
-  }
-
-  Point3Int times(int mult) {
-    return new Point3Int(mult * x, mult * y, mult * z);
-  }
-
-  Point3Int round() {
-    return new Point3Int(Math.round(x), Math.round(y), Math.round(z));
+  Point3Int(float x, float y, float z) {
+    this.x = Math.round(x);
+    this.y = Math.round(y);
+    this.z = Math.round(z);
   }
 
   @Override
