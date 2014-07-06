@@ -96,71 +96,24 @@ class GlHelper {
     return program;
   }
 
-  static int loadCubeTextureTopBottomSides(Resources resources,
-      int topResourceId, int bottomResourceId, int sidesResourceId) {
+  static int loadTexture(Resources resources, int resourceId) {
     int textureHandles[] = new int[1];
     GLES20.glGenTextures(1, textureHandles, 0);
     if (textureHandles[0] == 0) {
       throw new RuntimeException("Failed to create a texture");
     }
-    GLES20.glBindTexture(GLES20.GL_TEXTURE_CUBE_MAP, textureHandles[0]);
-
-    Bitmap topBitmap = loadBitmap(resources, topResourceId);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, topBitmap, 0);
-    topBitmap.recycle();
-
-    Bitmap bottomBitmap = loadBitmap(resources, bottomResourceId);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, bottomBitmap, 0);
-    bottomBitmap.recycle();
-
-    Bitmap sideBitmap = loadBitmap(resources, sidesResourceId);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, sideBitmap, 0);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, sideBitmap, 0);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, sideBitmap, 0);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, sideBitmap, 0);
-    sideBitmap.recycle();
-
-    GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_CUBE_MAP);
-
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_CUBE_MAP,
-        GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_CUBE_MAP,
-        GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_CUBE_MAP,
-        GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_CUBE_MAP,
-        GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
-
-    return textureHandles[0];
-  }
-
-  static int loadCubeTexture(Resources resources, int resourceId) {
-    int textureHandles[] = new int[1];
-    GLES20.glGenTextures(1, textureHandles, 0);
-    if (textureHandles[0] == 0) {
-      throw new RuntimeException("Failed to create a texture");
-    }
-    GLES20.glBindTexture(GLES20.GL_TEXTURE_CUBE_MAP, textureHandles[0]);
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureHandles[0]);
 
     Bitmap bitmap = loadBitmap(resources, resourceId);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, bitmap, 0);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, bitmap, 0);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, bitmap, 0);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, bitmap, 0);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, bitmap, 0);
-    GLUtils.texImage2D(GLES20.GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, bitmap, 0);
+    GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0);
     bitmap.recycle();
 
-    GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_CUBE_MAP);
+    GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D);
 
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_CUBE_MAP,
-        GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_CUBE_MAP,
-        GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_CUBE_MAP,
-        GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_CUBE_MAP,
-        GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
+    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
+    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
 
     return textureHandles[0];
   }

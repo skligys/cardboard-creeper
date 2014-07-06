@@ -20,11 +20,9 @@ class World {
   private final int xSize;
   private final int zSize;
   /** OpenGL support for drawing grass blocks. */
-  private final Cube cube = new Cube();
+  private final SquareMesh squareMesh;
   /** Center points of all blocks. */
   private final Set<Point3Int> blocks;
-  /** Center points of exposed blocks, i.e. those not completely surrounded by other blocks. */
-  private final Set<Point3Int> exposedBlocks;
   private final Performance performance = new Performance();
   private final Steve steve = new Steve();
   private final Physics physics = new Physics();
@@ -35,7 +33,8 @@ class World {
     this.xSize = xSize;
     this.zSize = zSize;
     blocks = randomHills();
-    exposedBlocks = exposedBlocks();
+    // Pre-create the mesh out of only exposedBlocks.
+    squareMesh = new SquareMesh(exposedBlocks());
   }
 
   private Set<Point3Int> randomHills() {
@@ -122,7 +121,7 @@ class World {
   }
 
   void surfaceCreated(Resources resources) {
-    cube.surfaceCreated(resources);
+    squareMesh.surfaceCreated(resources);
   }
 
   void draw(float[] projectionMatrix) {
@@ -139,18 +138,15 @@ class World {
 
     performance.startRendering();
     Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, steve.viewMatrix(), 0);
-    // Rendering however only shows exposedBlocks.
-    for (Point3Int block : exposedBlocks) {
-      cube.draw(viewProjectionMatrix, block.x, block.y, block.z);
-    }
+    squareMesh.draw(viewProjectionMatrix);
     performance.endRendering();
 
     float fps = performance.fps();
     if (fps > 0.0f) {
       Point3 position = steve.position();
-      String status = String.format("%f FPS, (%f, %f, %f), %d / %d, physics: %dms, render: %dms",
-          fps, position.x, position.y, position.z, exposedBlocks.size(), blocks.size(),
-          performance.physicsSpent(), performance.renderSpent());
+      String status = String.format("%f FPS, (%f, %f, %f), %d blocks, physics: %dms, render: %dms",
+          fps, position.x, position.y, position.z, blocks.size(), performance.physicsSpent(),
+          performance.renderSpent());
       Log.i(TAG, status);
     }
     performance.done();

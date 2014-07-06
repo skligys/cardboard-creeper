@@ -18,6 +18,10 @@ class Point3Int {
     this.z = Math.round(z);
   }
 
+  Point3 toPoint3() {
+    return new Point3(x, y, z);
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
