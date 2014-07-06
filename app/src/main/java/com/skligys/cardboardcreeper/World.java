@@ -19,31 +19,45 @@ class World {
   // World size in x and z directions.
   private final int xSize;
   private final int zSize;
+
+  /** All blocks in the world. */
+  private final Set<Block> blocks = new HashSet<Block>();
+  /**
+   * Shown blocks only. A block may be not shown if it is either blocked on all sides by
+   * neighboring blocks, or if the chunk it belongs to is not loaded.
+   */
+  private final Set<Block> shownBlocks = new HashSet<Block>();
   /** OpenGL support for drawing grass blocks. */
   private final SquareMesh squareMesh;
-  /** Center points of all blocks. */
-  private final Set<Point3Int> blocks;
   private final Performance performance = new Performance();
   private final Steve steve = new Steve();
   private final Physics physics = new Physics();
+
   /** Pre-allocated temporary matrix. */
   private final float[] viewProjectionMatrix = new float[16];
 
   World(int xSize, int zSize) {
     this.xSize = xSize;
     this.zSize = zSize;
-    blocks = randomHills();
-    // Pre-create the mesh out of only exposedBlocks.
-    squareMesh = new SquareMesh(exposedBlocks());
+    randomHills();
+    computeShownBlocks();
+    // Pre-create the mesh out of only shownBlocks.
+    squareMesh = new SquareMesh(shownBlocks);
   }
 
-  private Set<Point3Int> randomHills() {
-    Set<Point3Int> result = new HashSet<Point3Int>();
+  private void clearBlocks() {
+    blocks.clear();
+    shownBlocks.clear();
+  }
+
+  /** Fills in {@code blocks} and {@code chunkBlocks}. */
+  private void randomHills() {
+    clearBlocks();
 
     // Create a layer of grass everywhere.
     for (int x = -xSize / 2; x <= xSize / 2; ++x) {
       for (int z = -zSize / 2; z <= zSize / 2; ++z) {
-        result.add(new Point3Int(x, 0, z));
+        addBlock(new Block(x, 0, z));
 //        if (x == -xSize / 2 || x == xSize / 2 || z == -zSize / 2 || z == zSize / 2) {
 //          for (int y = 1; y <= 3; ++y) {
 //            result.add(new Point3Int(x, y, z));
@@ -65,7 +79,7 @@ class World {
             if (insideBounds(x, z) &&
                 insideHill(x, z, xCenter, zCenter, radius) &&
                 !insideCenterCylinder(x, z, 5)) {
-              result.add(new Point3Int(x, y, z));
+              addBlock(new Block(x, y, z));
             }
           }
         }
@@ -73,8 +87,10 @@ class World {
         --radius;
       }
     }
+  }
 
-    return result;
+  private void addBlock(Block block) {
+    blocks.add(block);
   }
 
   private static int randomInt(Random r, int min, int max) {
@@ -94,30 +110,30 @@ class World {
   }
 
   /**
-   * Looks through all blocks and returns only those that are exposed, i.e. not completely
-   * surrounded on all sides.
+   * Looks through all blocks and adds to {@code shownBlocks} only those that are exposed, i.e.
+   * not completely surrounded on all sides.
    */
-  private Set<Point3Int> exposedBlocks() {
-    Set<Point3Int> result = new HashSet<Point3Int>();
-    for (Point3Int block : blocks) {
+  private void computeShownBlocks() {
+    shownBlocks.clear();
+
+    for (Block block : blocks) {
       if (exposed(block)) {
-        result.add(block);
+        shownBlocks.add(block);
       }
     }
-    return result;
   }
 
   /**
    * Checks all 6 faces of the given block and returns true if at least one face is not covered
    * by another block in {@code blocks}.
    */
-  private boolean exposed(Point3Int block) {
-    return !blocks.contains(new Point3Int(block.x - 1, block.y, block.z)) ||
-        !blocks.contains(new Point3Int(block.x + 1, block.y, block.z)) ||
-        !blocks.contains(new Point3Int(block.x, block.y - 1, block.z)) ||
-        !blocks.contains(new Point3Int(block.x, block.y + 1, block.z)) ||
-        !blocks.contains(new Point3Int(block.x, block.y, block.z - 1)) ||
-        !blocks.contains(new Point3Int(block.x, block.y, block.z + 1));
+  private boolean exposed(Block block) {
+    return !blocks.contains(new Block(block.x - 1, block.y, block.z)) ||
+        !blocks.contains(new Block(block.x + 1, block.y, block.z)) ||
+        !blocks.contains(new Block(block.x, block.y - 1, block.z)) ||
+        !blocks.contains(new Block(block.x, block.y + 1, block.z)) ||
+        !blocks.contains(new Block(block.x, block.y, block.z - 1)) ||
+        !blocks.contains(new Block(block.x, block.y, block.z + 1));
   }
 
   void surfaceCreated(Resources resources) {
@@ -129,10 +145,11 @@ class World {
     float dt = Math.min(performance.tick(), 0.2f);
 
     performance.startPhysics();
+    Point3 eyePosition = null;
     // Do several physics iterations per frame to avoid falling through the floor when dt is large.
     for (int i = 0; i < PHYSICS_ITERATIONS_PER_FRAME; ++i) {
       // Physics needs all blocks in the world to compute collisions.
-      physics.updateEyePosition(steve, dt / PHYSICS_ITERATIONS_PER_FRAME, blocks);
+      eyePosition = physics.updateEyePosition(steve, dt / PHYSICS_ITERATIONS_PER_FRAME, blocks);
     }
     performance.endPhysics();
 
@@ -144,9 +161,10 @@ class World {
     float fps = performance.fps();
     if (fps > 0.0f) {
       Point3 position = steve.position();
-      String status = String.format("%f FPS, (%f, %f, %f), %d blocks, physics: %dms, render: %dms",
-          fps, position.x, position.y, position.z, blocks.size(), performance.physicsSpent(),
-          performance.renderSpent());
+      String status = String.format("%f FPS, (%f, %f, %f), %d / %d blocks, " +
+          "physics: %dms, render: %dms",
+          fps, position.x, position.y, position.z, shownBlocks.size(), blocks.size(),
+          performance.physicsSpent(), performance.renderSpent());
       Log.i(TAG, status);
     }
     performance.done();

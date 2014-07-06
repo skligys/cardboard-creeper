@@ -23,7 +23,7 @@ class SquareMesh {
   private int positionHandle;
   private int textureCoordHandle;
 
-  SquareMesh(Set<Point3Int> blocks) {
+  SquareMesh(Set<Block> blocks) {
     long start = SystemClock.uptimeMillis();
 
     // SK: Debug.
@@ -32,31 +32,31 @@ class SquareMesh {
 
     VertexIndexTextureList vitList = new VertexIndexTextureList();
     int squaresAdded = 0;
-    for (Point3Int block : blocks) {
+    for (Block block : blocks) {
       // Only add faces that are not between two blocks and thus invisible.
-      if (!blocks.contains(new Point3Int(block.x, block.y + 1, block.z))) {
+      if (!blocks.contains(new Block(block.x, block.y + 1, block.z))) {
         addTopFace(vitList, block);
         ++squaresAdded;
       }
 
-      if (!blocks.contains(new Point3Int(block.x, block.y, block.z + 1))) {
+      if (!blocks.contains(new Block(block.x, block.y, block.z + 1))) {
         addFrontFace(vitList, block);
         ++squaresAdded;
       }
-      if (!blocks.contains(new Point3Int(block.x - 1, block.y, block.z))) {
+      if (!blocks.contains(new Block(block.x - 1, block.y, block.z))) {
         addLeftFace(vitList, block);
         ++squaresAdded;
       }
-      if (!blocks.contains(new Point3Int(block.x + 1, block.y, block.z))) {
+      if (!blocks.contains(new Block(block.x + 1, block.y, block.z))) {
         addRightFace(vitList, block);
         ++squaresAdded;
       }
-      if (!blocks.contains(new Point3Int(block.x, block.y, block.z - 1))) {
+      if (!blocks.contains(new Block(block.x, block.y, block.z - 1))) {
         addBackFace(vitList, block);
         ++squaresAdded;
       }
 
-      if (!blocks.contains(new Point3Int(block.x, block.y - 1, block.z))) {
+      if (!blocks.contains(new Block(block.x, block.y - 1, block.z))) {
         addBottomFace(vitList, block);
         ++squaresAdded;
       }
@@ -99,7 +99,7 @@ class SquareMesh {
       0.0f, 0.5f,
   };
 
-  private void addTopFace(VertexIndexTextureList vitList, Point3Int block) {
+  private void addTopFace(VertexIndexTextureList vitList, Block block) {
     vitList.addFace(block, TOP_FACE, FACE_DRAW_LIST_IDXS, TOP_FACE_TEXTURE_COORDS);
   }
 
@@ -118,7 +118,7 @@ class SquareMesh {
       0.5f, 0.5f,
   };
 
-  private void addFrontFace(VertexIndexTextureList vitList, Point3Int block) {
+  private void addFrontFace(VertexIndexTextureList vitList, Block block) {
     vitList.addFace(block, FRONT_FACE, FACE_DRAW_LIST_IDXS, SIDE_FACE_TEXTURE_COORDS);
   }
 
@@ -129,7 +129,7 @@ class SquareMesh {
       new Point3(-0.5f, 0.5f, -0.5f)  // rear top
   };
 
-  private void addLeftFace(VertexIndexTextureList vitList, Point3Int block) {
+  private void addLeftFace(VertexIndexTextureList vitList, Block block) {
     vitList.addFace(block, LEFT_FACE, FACE_DRAW_LIST_IDXS, SIDE_FACE_TEXTURE_COORDS);
   }
 
@@ -140,7 +140,7 @@ class SquareMesh {
       new Point3(0.5f, 0.5f, 0.5f)  // front top
   };
 
-  private void addRightFace(VertexIndexTextureList vitList, Point3Int block) {
+  private void addRightFace(VertexIndexTextureList vitList, Block block) {
     vitList.addFace(block, RIGHT_FACE, FACE_DRAW_LIST_IDXS, SIDE_FACE_TEXTURE_COORDS);
   }
 
@@ -151,7 +151,7 @@ class SquareMesh {
       new Point3(0.5f, 0.5f, -0.5f)  // top right
   };
 
-  private void addBackFace(VertexIndexTextureList vitList, Point3Int block) {
+  private void addBackFace(VertexIndexTextureList vitList, Block block) {
     vitList.addFace(block, BACK_FACE, FACE_DRAW_LIST_IDXS, SIDE_FACE_TEXTURE_COORDS);
   }
 
@@ -170,7 +170,7 @@ class SquareMesh {
       0.0f, 0.0f,
   };
 
-  private void addBottomFace(VertexIndexTextureList vitList, Point3Int block) {
+  private void addBottomFace(VertexIndexTextureList vitList, Block block) {
     vitList.addFace(block, BOTTOM_FACE, FACE_DRAW_LIST_IDXS, BOTTOM_FACE_TEXTURE_COORDS);
   }
 
@@ -219,7 +219,7 @@ class SquareMesh {
     // Since model matrix is identity, MVP matrix is the same as VP matrix.
     GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, viewProjectionMatrix, 0);
 
-    // Draw grass top squares.
+    // Draw all squares.
     if (drawListBuffer.limit() > 0) {
       GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, vertexBuffer);
       GLES20.glVertexAttribPointer(textureCoordHandle, 2, GLES20.GL_FLOAT, false, 0, textureCoordBuffer);
