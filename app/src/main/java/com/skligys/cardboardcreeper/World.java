@@ -4,13 +4,18 @@ import android.content.res.Resources;
 import android.opengl.Matrix;
 import android.util.Log;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
 /** Holds a randomly generated hilly landscape of blocks and Steve. */
 class World {
   private static final String TAG = "World";
+
   /**
    * Do several physics iterations per frame to avoid falling through the floor when dt is large.
    */
@@ -27,6 +32,9 @@ class World {
    * neighboring blocks, or if the chunk it belongs to is not loaded.
    */
   private final Set<Block> shownBlocks = new HashSet<Block>();
+  /** Maps chunk coordinates to a list of blocks inside the chunk. */
+  private final Map<Chunk, List<Block>> chunkBlocks = new HashMap<Chunk, List<Block>>();
+
   /** OpenGL support for drawing grass blocks. */
   private final SquareMesh squareMesh;
   private final Performance performance = new Performance();
@@ -45,11 +53,6 @@ class World {
     squareMesh = new SquareMesh(shownBlocks);
   }
 
-  private void clearBlocks() {
-    blocks.clear();
-    shownBlocks.clear();
-  }
-
   /** Fills in {@code blocks} and {@code chunkBlocks}. */
   private void randomHills() {
     clearBlocks();
@@ -58,19 +61,23 @@ class World {
     for (int x = -xSize / 2; x <= xSize / 2; ++x) {
       for (int z = -zSize / 2; z <= zSize / 2; ++z) {
         addBlock(new Block(x, 0, z));
-//        if (x == -xSize / 2 || x == xSize / 2 || z == -zSize / 2 || z == zSize / 2) {
-//          for (int y = 1; y <= 3; ++y) {
-//            result.add(new Point3Int(x, y, z));
-//          }
-//        }
+        // 3 blocks high walls at the end of the world.
+        if (x == -xSize / 2 || x == xSize / 2 || z == -zSize / 2 || z == zSize / 2) {
+          for (int y = 1; y <= 3; ++y) {
+            addBlock(new Block(x, y, z));
+          }
+        }
       }
     }
 
-    // Random hills.  4 hills for 16x16 size.
+    // Random hills.  120 hills for 160x160 size.
     Random r = new Random();
-    for (int i = 0; i < xSize * zSize / 64; ++i) {
-      int xCenter = randomInt(r, -xSize / 2, xSize / 2);
-      int zCenter = randomInt(r, -zSize / 2, zSize / 2);
+    // Hill centers are not allowed within 10 blocks from the end of the world, so that hills
+    // wouldn't allow jumping over the fence and into the infinite void.
+    int hillCount = (xSize - 20) * (zSize - 20) / 163;
+    for (int i = 0; i < hillCount; ++i) {
+      int xCenter = randomInt(r, -xSize / 2 + 10, xSize / 2 - 10);
+      int zCenter = randomInt(r, -zSize / 2 + 10, zSize / 2 - 10);
       int height = randomInt(r, 1, 6);
       int radius = randomInt(r, 5, 9);
       for (int y = 1; y <= height; ++y) {
@@ -89,8 +96,21 @@ class World {
     }
   }
 
+  private void clearBlocks() {
+    blocks.clear();
+    chunkBlocks.clear();
+  }
+
   private void addBlock(Block block) {
     blocks.add(block);
+
+    Chunk chunk = new Chunk(block);
+    List<Block> blocksInChunk = chunkBlocks.get(chunk);
+    if (blocksInChunk == null) {
+      blocksInChunk = new ArrayList<Block>();
+      chunkBlocks.put(chunk, blocksInChunk);
+    }
+    blocksInChunk.add(block);
   }
 
   private static int randomInt(Random r, int min, int max) {
@@ -117,10 +137,66 @@ class World {
     shownBlocks.clear();
 
     for (Block block : blocks) {
-      if (exposed(block)) {
+      if (chunkShown(new Chunk(block), steve.currentChunk()) && exposed(block)) {
         shownBlocks.add(block);
       }
     }
+  }
+
+  private static final int SHOWN_CHUNK_RADIUS = 3;
+
+  private static boolean chunkShown(Chunk chunk, Chunk current) {
+    return chunkShown(chunk.x - current.x, chunk.y - current.y, chunk.z - current.z);
+  }
+
+  private static boolean chunkShown(int dx, int dy, int dz) {
+    return dx * dx + dy * dy + dz * dz <= SHOWN_CHUNK_RADIUS * SHOWN_CHUNK_RADIUS;
+  }
+
+  private void changeChunk(Chunk beforeCurrChunk, Chunk afterCurrChunk) {
+    Set<Chunk> beforeShownChunks = new HashSet<Chunk>();
+    Set<Chunk> afterShownChunks = new HashSet<Chunk>();
+    for (int dx = -SHOWN_CHUNK_RADIUS; dx <= SHOWN_CHUNK_RADIUS; ++dx) {
+      for (int dy = -SHOWN_CHUNK_RADIUS; dy <= SHOWN_CHUNK_RADIUS; ++dy) {
+        for (int dz = -SHOWN_CHUNK_RADIUS; dz <= SHOWN_CHUNK_RADIUS; ++dz) {
+          if (!chunkShown(dx, dy, dz)) {
+            continue;
+          }
+          beforeShownChunks.add(beforeCurrChunk.plus(new Chunk(dx, dy, dz)));
+          afterShownChunks.add(afterCurrChunk.plus(new Chunk(dx, dy, dz)));
+        }
+      }
+    }
+    // showChunks = afterShownChunks \ beforeShownChunks
+    // hideChunks = beforeShownChunks \ afterShownChunks
+    for (Chunk chunk : setDiff(afterShownChunks, beforeShownChunks)) {
+      showChunk(chunk);
+    }
+    for (Chunk chunk : setDiff(beforeShownChunks, afterShownChunks)) {
+      hideChunk(chunk);
+    }
+  }
+
+  private void showChunk(Chunk chunk) {
+    for (Block block : chunkBlocks.get(chunk)) {
+      if (!shownBlocks.contains(block) && exposed(block)) {
+        shownBlocks.add(block);
+      }
+    }
+  }
+
+  private void hideChunk(Chunk chunk) {
+    for (Block block : chunkBlocks.get(chunk)) {
+      if (shownBlocks.contains(block)) {
+        shownBlocks.remove(block);
+      }
+    }
+  }
+
+  private static <T> Set<T> setDiff(Set<T> s1, Set<T> s2) {
+    Set<T> result = new HashSet<T>(s1);
+    result.removeAll(s2);
+    return result;
   }
 
   /**
@@ -152,6 +228,20 @@ class World {
       eyePosition = physics.updateEyePosition(steve, dt / PHYSICS_ITERATIONS_PER_FRAME, blocks);
     }
     performance.endPhysics();
+
+    performance.startChunkLoad();
+    Chunk newChunk = new Chunk(eyePosition);
+    if (!newChunk.equals(steve.currentChunk())) {
+      // TODO: Load in a background thread?  Make sure does not keep reloading front and back.
+
+      // SK: Debug.
+      Log.i(TAG, "Current chunk: " + steve.currentChunk() + ", new chunk: " + newChunk + ", loading...");
+
+      changeChunk(steve.currentChunk(), newChunk);
+      squareMesh.update(shownBlocks);
+      steve.setCurrentChunk(newChunk);
+    }
+    performance.endChunkLoad();
 
     performance.startRendering();
     Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, steve.viewMatrix(), 0);

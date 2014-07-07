@@ -7,14 +7,26 @@ import android.util.Log;
 
 import java.nio.FloatBuffer;
 import java.nio.ShortBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 class SquareMesh {
   private static final String TAG = "SquareMesh";
 
-  private final FloatBuffer vertexBuffer;
-  private final ShortBuffer drawListBuffer;
-  private final FloatBuffer textureCoordBuffer;
+  private static class Buffers {
+    private final FloatBuffer vertexBuffer;
+    private final ShortBuffer drawListBuffer;
+    private final FloatBuffer textureCoordBuffer;
+
+    Buffers(FloatBuffer vertexBuffer, ShortBuffer drawListBuffer, FloatBuffer textureCoordBuffer) {
+      this.vertexBuffer = vertexBuffer;
+      this.drawListBuffer = drawListBuffer;
+      this.textureCoordBuffer = textureCoordBuffer;
+    }
+  }
+
+  private List<Buffers> buffers = new ArrayList<Buffers>();
 
   // Initialized during surface creation.
   private int program;
@@ -24,6 +36,10 @@ class SquareMesh {
   private int textureCoordHandle;
 
   SquareMesh(Set<Block> blocks) {
+    update(blocks);
+  }
+
+  void update(Set<Block> blocks) {
     long start = SystemClock.uptimeMillis();
 
     // SK: Debug.
@@ -62,15 +78,65 @@ class SquareMesh {
       }
     }
 
-    vertexBuffer = GlHelper.createFloatBuffer(vitList.vertexArray());
-    drawListBuffer = GlHelper.createShortBuffer(vitList.indexArray());
-    textureCoordBuffer = GlHelper.createFloatBuffer(vitList.textureCoordArray());
+    buffers.clear();
+    for (VertexIndexTextureList.VertexIndexTextureArray vita : vitList.vertexIndexTextureArrays()) {
+      Buffers b = new Buffers(
+          GlHelper.createFloatBuffer(vita.vertexArray),
+          GlHelper.createShortBuffer(vita.indexArray),
+          GlHelper.createFloatBuffer(vita.textureCoordArray));
+      buffers.add(b);
+    }
 
     Log.i(TAG, "Squares: " + squaresAdded +
-        ", vertex buffer: " + vertexBuffer.limit() +
-        ", draw list buffer: " + drawListBuffer.limit() +
-        ", texture coordinate buffer: " + textureCoordBuffer.limit());
+        ", vertex buffers: " + vertexBufferLimits(buffers) +
+        ", draw list buffers: " + drawListBufferLimits(buffers) +
+        ", texture coordinate buffers: " + texCoordBufferLimits(buffers));
     Log.i(TAG, "Spent " + (SystemClock.uptimeMillis() - start) + "ms");
+  }
+
+  private static String vertexBufferLimits(List<Buffers> buffers) {
+    boolean first = true;
+    StringBuilder result = new StringBuilder("[");
+    for (Buffers b : buffers) {
+      if (first) {
+        first = false;
+      } else {
+        result.append(", ");
+      }
+
+      result.append(b.vertexBuffer.limit());
+    }
+    return result.append("]").toString();
+  }
+
+  private static String drawListBufferLimits(List<Buffers> buffers) {
+    boolean first = true;
+    StringBuilder result = new StringBuilder("[");
+    for (Buffers b : buffers) {
+      if (first) {
+        first = false;
+      } else {
+        result.append(", ");
+      }
+
+      result.append(b.drawListBuffer.limit());
+    }
+    return result.append("]").toString();
+  }
+
+  private static String texCoordBufferLimits(List<Buffers> buffers) {
+    boolean first = true;
+    StringBuilder result = new StringBuilder("[");
+    for (Buffers b : buffers) {
+      if (first) {
+        first = false;
+      } else {
+        result.append(", ");
+      }
+
+      result.append(b.textureCoordBuffer.limit());
+    }
+    return result.append("]").toString();
   }
 
   // OpenGL coordinates:
@@ -220,12 +286,13 @@ class SquareMesh {
     GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, viewProjectionMatrix, 0);
 
     // Draw all squares.
-    if (drawListBuffer.limit() > 0) {
-      GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, vertexBuffer);
-      GLES20.glVertexAttribPointer(textureCoordHandle, 2, GLES20.GL_FLOAT, false, 0, textureCoordBuffer);
+    for (Buffers b : buffers) {
+      GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, b.vertexBuffer);
+      GLES20.glVertexAttribPointer(textureCoordHandle, 2, GLES20.GL_FLOAT, false, 0,
+          b.textureCoordBuffer);
 
-      GLES20.glDrawElements(GLES20.GL_TRIANGLES, drawListBuffer.limit(), GLES20.GL_UNSIGNED_SHORT,
-          drawListBuffer);
+      GLES20.glDrawElements(GLES20.GL_TRIANGLES, b.drawListBuffer.limit(), GLES20.GL_UNSIGNED_SHORT,
+          b.drawListBuffer);
     }
   }
 }

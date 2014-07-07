@@ -15,7 +15,7 @@ class GlRenderer implements GLSurfaceView.Renderer {
 
   GlRenderer(Resources resources) {
     this.resources = resources;
-    world = new World(16, 16);
+    world = new World(160, 160);
   }
 
   @Override

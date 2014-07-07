@@ -16,6 +16,7 @@ class Steve {
   private boolean walking = false;
   /** Speed in axis y direction (up), in m/s. */
   private float verticalSpeed = 0.0f;
+  private Chunk currentChunk = new Chunk(0, 0, 0);
 
   void walk(boolean start) {
     walking = start;
@@ -27,6 +28,14 @@ class Steve {
 
   void setVerticalSpeed(float verticalSpeed) {
     this.verticalSpeed = verticalSpeed;
+  }
+
+  Chunk currentChunk() {
+    return currentChunk;
+  }
+
+  public void setCurrentChunk(Chunk chunk) {
+    this.currentChunk = chunk;
   }
 
   void rotate(float dx, float dy) {
