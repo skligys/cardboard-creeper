@@ -2,15 +2,18 @@ package com.skligys.cardboardcreeper;
 
 import android.content.res.Resources;
 import android.opengl.Matrix;
+import android.os.SystemClock;
 import android.util.Log;
 
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.LinkedBlockingDeque;
 
 /** Holds a randomly generated hilly landscape of blocks and Steve. */
 class World {
@@ -44,6 +47,18 @@ class World {
   /** Pre-allocated temporary matrix. */
   private final float[] viewProjectionMatrix = new float[16];
 
+  private static class ChunkChange {
+    private final Chunk beforeChunk;
+    private final Chunk afterChunk;
+
+    ChunkChange(Chunk beforeChunk, Chunk afterChunk) {
+      this.beforeChunk = beforeChunk;
+      this.afterChunk = afterChunk;
+    }
+  }
+  private final Deque<ChunkChange> chunkChanges = new LinkedBlockingDeque<ChunkChange>();
+  private final Thread chunkLoader;
+
   World(int xSize, int zSize) {
     this.xSize = xSize;
     this.zSize = zSize;
@@ -51,6 +66,10 @@ class World {
     computeShownBlocks();
     // Pre-create the mesh out of only shownBlocks.
     squareMesh = new SquareMesh(shownBlocks);
+
+    // Start the thread to load chunks in the background.
+    chunkLoader = createChunkLoader();
+    chunkLoader.start();
   }
 
   /** Fills in {@code blocks} and {@code chunkBlocks}. */
@@ -134,11 +153,13 @@ class World {
    * not completely surrounded on all sides.
    */
   private void computeShownBlocks() {
-    shownBlocks.clear();
+    synchronized(shownBlocks) {
+      shownBlocks.clear();
 
-    for (Block block : blocks) {
-      if (chunkShown(new Chunk(block), steve.currentChunk()) && exposed(block)) {
-        shownBlocks.add(block);
+      for (Block block : blocks) {
+        if (chunkShown(new Chunk(block), steve.currentChunk()) && exposed(block)) {
+          shownBlocks.add(block);
+        }
       }
     }
   }
@@ -151,6 +172,34 @@ class World {
 
   private static boolean chunkShown(int dx, int dy, int dz) {
     return dx * dx + dy * dy + dz * dz <= SHOWN_CHUNK_RADIUS * SHOWN_CHUNK_RADIUS;
+  }
+
+  /** Asynchronous chunk loader. */
+  private Thread createChunkLoader() {
+    Runnable runnable = new Runnable() {
+      @Override public void run() {
+        while (true) {
+          ChunkChange first = chunkChanges.peekFirst();
+          ChunkChange last = chunkChanges.peekLast();
+          if (first != null && last != null) {
+            chunkChanges.clear();
+            Chunk before = first.beforeChunk;
+            Chunk after = last.afterChunk;
+            Log.i(TAG, "Moving from chunk: " + before + " to " + after + "...");
+            long start = SystemClock.uptimeMillis();
+
+            changeChunk(before, after);
+            squareMesh.update(shownBlocks);
+
+            long elapsed = SystemClock.uptimeMillis() - start;
+            Log.i(TAG, "Loading chunks took " + elapsed + "ms");
+          }
+
+          SystemClock.sleep(1);
+        }
+      }
+    };
+    return new Thread(runnable);
   }
 
   private void changeChunk(Chunk beforeCurrChunk, Chunk afterCurrChunk) {
@@ -167,13 +216,16 @@ class World {
         }
       }
     }
-    // showChunks = afterShownChunks \ beforeShownChunks
-    // hideChunks = beforeShownChunks \ afterShownChunks
-    for (Chunk chunk : setDiff(afterShownChunks, beforeShownChunks)) {
-      showChunk(chunk);
-    }
-    for (Chunk chunk : setDiff(beforeShownChunks, afterShownChunks)) {
-      hideChunk(chunk);
+
+    synchronized(shownBlocks) {
+      // showChunks = afterShownChunks \ beforeShownChunks
+      // hideChunks = beforeShownChunks \ afterShownChunks
+      for (Chunk chunk : setDiff(afterShownChunks, beforeShownChunks)) {
+        showChunk(chunk);
+      }
+      for (Chunk chunk : setDiff(beforeShownChunks, afterShownChunks)) {
+        hideChunk(chunk);
+      }
     }
   }
 
@@ -229,19 +281,12 @@ class World {
     }
     performance.endPhysics();
 
-    performance.startChunkLoad();
-    Chunk newChunk = new Chunk(eyePosition);
-    if (!newChunk.equals(steve.currentChunk())) {
-      // TODO: Load in a background thread?  Make sure does not keep reloading front and back.
-
-      // SK: Debug.
-      Log.i(TAG, "Current chunk: " + steve.currentChunk() + ", new chunk: " + newChunk + ", loading...");
-
-      changeChunk(steve.currentChunk(), newChunk);
-      squareMesh.update(shownBlocks);
-      steve.setCurrentChunk(newChunk);
+    Chunk beforeChunk = steve.currentChunk();
+    Chunk afterChunk = new Chunk(eyePosition);
+    if (!afterChunk.equals(beforeChunk)) {
+      chunkChanges.add(new ChunkChange(beforeChunk, afterChunk));
+      steve.setCurrentChunk(afterChunk);
     }
-    performance.endChunkLoad();
 
     performance.startRendering();
     Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, steve.viewMatrix(), 0);

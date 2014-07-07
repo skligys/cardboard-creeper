@@ -26,7 +26,7 @@ class SquareMesh {
     }
   }
 
-  private List<Buffers> buffers = new ArrayList<Buffers>();
+  private final List<Buffers> buffers = new ArrayList<Buffers>();
 
   // Initialized during surface creation.
   private int program;
@@ -48,49 +48,53 @@ class SquareMesh {
 
     VertexIndexTextureList vitList = new VertexIndexTextureList();
     int squaresAdded = 0;
-    for (Block block : blocks) {
-      // Only add faces that are not between two blocks and thus invisible.
-      if (!blocks.contains(new Block(block.x, block.y + 1, block.z))) {
-        addTopFace(vitList, block);
-        ++squaresAdded;
-      }
+    synchronized(blocks) {
+      for (Block block : blocks) {
+        // Only add faces that are not between two blocks and thus invisible.
+        if (!blocks.contains(new Block(block.x, block.y + 1, block.z))) {
+          addTopFace(vitList, block);
+          ++squaresAdded;
+        }
 
-      if (!blocks.contains(new Block(block.x, block.y, block.z + 1))) {
-        addFrontFace(vitList, block);
-        ++squaresAdded;
-      }
-      if (!blocks.contains(new Block(block.x - 1, block.y, block.z))) {
-        addLeftFace(vitList, block);
-        ++squaresAdded;
-      }
-      if (!blocks.contains(new Block(block.x + 1, block.y, block.z))) {
-        addRightFace(vitList, block);
-        ++squaresAdded;
-      }
-      if (!blocks.contains(new Block(block.x, block.y, block.z - 1))) {
-        addBackFace(vitList, block);
-        ++squaresAdded;
-      }
+        if (!blocks.contains(new Block(block.x, block.y, block.z + 1))) {
+          addFrontFace(vitList, block);
+          ++squaresAdded;
+        }
+        if (!blocks.contains(new Block(block.x - 1, block.y, block.z))) {
+          addLeftFace(vitList, block);
+          ++squaresAdded;
+        }
+        if (!blocks.contains(new Block(block.x + 1, block.y, block.z))) {
+          addRightFace(vitList, block);
+          ++squaresAdded;
+        }
+        if (!blocks.contains(new Block(block.x, block.y, block.z - 1))) {
+          addBackFace(vitList, block);
+          ++squaresAdded;
+        }
 
-      if (!blocks.contains(new Block(block.x, block.y - 1, block.z))) {
-        addBottomFace(vitList, block);
-        ++squaresAdded;
+        if (!blocks.contains(new Block(block.x, block.y - 1, block.z))) {
+          addBottomFace(vitList, block);
+          ++squaresAdded;
+        }
       }
     }
 
-    buffers.clear();
-    for (VertexIndexTextureList.VertexIndexTextureArray vita : vitList.vertexIndexTextureArrays()) {
-      Buffers b = new Buffers(
-          GlHelper.createFloatBuffer(vita.vertexArray),
-          GlHelper.createShortBuffer(vita.indexArray),
-          GlHelper.createFloatBuffer(vita.textureCoordArray));
-      buffers.add(b);
-    }
+    synchronized(buffers) {
+      buffers.clear();
+      for (VertexIndexTextureList.VertexIndexTextureArray vita : vitList.vertexIndexTextureArrays()) {
+        Buffers b = new Buffers(
+            GlHelper.createFloatBuffer(vita.vertexArray),
+            GlHelper.createShortBuffer(vita.indexArray),
+            GlHelper.createFloatBuffer(vita.textureCoordArray));
+        buffers.add(b);
+      }
 
-    Log.i(TAG, "Squares: " + squaresAdded +
-        ", vertex buffers: " + vertexBufferLimits(buffers) +
-        ", draw list buffers: " + drawListBufferLimits(buffers) +
-        ", texture coordinate buffers: " + texCoordBufferLimits(buffers));
+      Log.i(TAG, "Squares: " + squaresAdded +
+          ", vertex buffers: " + vertexBufferLimits(buffers) +
+          ", draw list buffers: " + drawListBufferLimits(buffers) +
+          ", texture coordinate buffers: " + texCoordBufferLimits(buffers));
+    }
     Log.i(TAG, "Spent " + (SystemClock.uptimeMillis() - start) + "ms");
   }
 
@@ -286,13 +290,15 @@ class SquareMesh {
     GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, viewProjectionMatrix, 0);
 
     // Draw all squares.
-    for (Buffers b : buffers) {
-      GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, b.vertexBuffer);
-      GLES20.glVertexAttribPointer(textureCoordHandle, 2, GLES20.GL_FLOAT, false, 0,
-          b.textureCoordBuffer);
+    synchronized(buffers) {
+      for (Buffers b : buffers) {
+        GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, b.vertexBuffer);
+        GLES20.glVertexAttribPointer(textureCoordHandle, 2, GLES20.GL_FLOAT, false, 0,
+            b.textureCoordBuffer);
 
-      GLES20.glDrawElements(GLES20.GL_TRIANGLES, b.drawListBuffer.limit(), GLES20.GL_UNSIGNED_SHORT,
-          b.drawListBuffer);
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, b.drawListBuffer.limit(), GLES20.GL_UNSIGNED_SHORT,
+            b.drawListBuffer);
+      }
     }
   }
 }

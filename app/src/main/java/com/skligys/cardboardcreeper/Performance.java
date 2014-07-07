@@ -15,8 +15,6 @@ class Performance {
 
   private long physicsTimestamp = 0L;
   private long physicsSpent = 0L;
-  private long chunkLoadTimestamp = 0L;
-  private long chunkLoadSpent = 0L;
   private long renderTimestamp = 0L;
   private long renderSpent = 0L;
 
@@ -77,21 +75,6 @@ class Performance {
   public int physicsSpent() {
     int spent = (int) (physicsSpent / frameCount);
     physicsSpent = 0L;
-    return spent;
-  }
-
-  void startChunkLoad() {
-    chunkLoadTimestamp = SystemClock.uptimeMillis();
-  }
-
-  void endChunkLoad() {
-    chunkLoadSpent += SystemClock.uptimeMillis() - chunkLoadTimestamp;
-    chunkLoadTimestamp = 0L;
-  }
-
-  public int chunkLoadSpent() {
-    int spent = (int) (chunkLoadSpent / frameCount);
-    chunkLoadSpent = 0L;
     return spent;
   }
 
