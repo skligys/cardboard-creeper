@@ -251,9 +251,10 @@ class World {
     float fps = performance.fps();
     if (fps > 0.0f) {
       Point3 position = steve.position();
-      String status = String.format("%f FPS, (%f, %f, %f), %d / %d blocks, " +
+      String status = String.format("%f FPS (%f-%f), (%f, %f, %f), %d / %d blocks, " +
           "physics: %dms, render: %dms",
-          fps, position.x, position.y, position.z, shownBlocks.size(), blocks.size(),
+          fps, performance.minFps(), performance.maxFps(),
+          position.x, position.y, position.z, shownBlocks.size(), blocks.size(),
           performance.physicsSpent(), performance.renderSpent());
       Log.i(TAG, status);
     }

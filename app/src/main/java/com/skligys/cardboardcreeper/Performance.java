@@ -9,6 +9,8 @@ class Performance {
   private long fpsStartTimestamp = -1L;
   private int frameCount;
   private float fps = 0.0f;
+  private float minFps = Float.MAX_VALUE;
+  private float maxFps = 0.0f;
   private boolean reset = false;
 
   private long physicsTimestamp = 0L;
@@ -36,6 +38,9 @@ class Performance {
     }
     float secondsPassed = (now - prevTimestamp) * 0.001f;
     frameCount++;
+    float momentaryFps = 1.0f / secondsPassed;
+    maxFps = Math.max(maxFps, momentaryFps);
+    minFps = Math.min(minFps, momentaryFps);
 
     // Update state for FPS calculation when enough data.
     if (now - fpsStartTimestamp >= FPS_INTERVAL) {
@@ -48,11 +53,16 @@ class Performance {
     return secondsPassed;
   }
 
-  /** After each call, resets the computed FPS back to zero until more data is available. */
   float fps() {
-    float result = fps;
-    fps = 0.0f;
-    return result;
+    return fps;
+  }
+
+  float minFps() {
+    return minFps;
+  }
+
+  float maxFps() {
+    return maxFps;
   }
 
   void startPhysics() {
@@ -100,9 +110,13 @@ class Performance {
     return spent;
   }
 
+  /** After the frame is done with stats, reset computed values until more data is available. */
   void done() {
     if (reset) {
       reset = false;
+      fps = 0.0f;
+      minFps = Float.MAX_VALUE;
+      maxFps = 0.0f;
       frameCount = 0;
     }
   }
