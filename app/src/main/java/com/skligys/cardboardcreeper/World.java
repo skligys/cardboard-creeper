@@ -63,7 +63,7 @@ class World {
     this.xSize = xSize;
     this.zSize = zSize;
     randomHills();
-    computeShownBlocks();
+    computeShownBlocks(new Chunk(steve.position()));
     // Pre-create the mesh out of only shownBlocks.
     squareMesh = new SquareMesh(shownBlocks);
 
@@ -149,17 +149,16 @@ class World {
   }
 
   /**
-   * Looks through all blocks and adds to {@code shownBlocks} only those that are exposed, i.e.
-   * not completely surrounded on all sides.
+   * Looks through all blocks within chunks neighboring the current chunk and adds to
+   * {@code shownBlocks} only those that are exposed, i.e. not completely surrounded on all sides.
    */
-  private void computeShownBlocks() {
-    synchronized(shownBlocks) {
-      shownBlocks.clear();
+  private void computeShownBlocks(Chunk current) {
+    shownBlocks.clear();
 
-      for (Block block : blocks) {
-        if (chunkShown(new Chunk(block), steve.currentChunk()) && exposed(block)) {
-          shownBlocks.add(block);
-        }
+    for (Block block : blocks) {
+      Chunk chunk = new Chunk(block);
+      if (chunkShown(chunk, current) && exposed(block)) {
+        shownBlocks.add(block);
       }
     }
   }
