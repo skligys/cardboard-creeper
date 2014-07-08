@@ -7,26 +7,13 @@ import android.util.Log;
 
 import java.nio.FloatBuffer;
 import java.nio.ShortBuffer;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 class SquareMesh {
   private static final String TAG = "SquareMesh";
-
-  private static class Buffers {
-    private final FloatBuffer vertexBuffer;
-    private final ShortBuffer drawListBuffer;
-    private final FloatBuffer textureCoordBuffer;
-
-    Buffers(FloatBuffer vertexBuffer, ShortBuffer drawListBuffer, FloatBuffer textureCoordBuffer) {
-      this.vertexBuffer = vertexBuffer;
-      this.drawListBuffer = drawListBuffer;
-      this.textureCoordBuffer = textureCoordBuffer;
-    }
-  }
-
-  private final List<Buffers> buffers = new ArrayList<Buffers>();
 
   // Initialized during surface creation.
   private int program;
@@ -35,112 +22,98 @@ class SquareMesh {
   private int positionHandle;
   private int textureCoordHandle;
 
-  SquareMesh(Set<Block> blocks) {
-    update(blocks);
+  private static class Buffers {
+    private final int squares;
+    private final FloatBuffer vertexBuffer;
+    private final ShortBuffer drawListBuffer;
+    private final FloatBuffer textureCoordBuffer;
+
+    Buffers(int squares, FloatBuffer vertexBuffer, ShortBuffer drawListBuffer,
+            FloatBuffer textureCoordBuffer) {
+      this.squares = squares;
+      this.vertexBuffer = vertexBuffer;
+      this.drawListBuffer = drawListBuffer;
+      this.textureCoordBuffer = textureCoordBuffer;
+    }
   }
 
-  void update(Set<Block> blocks) {
+  /**
+   * Chunk to buffers map, loaded on demand in a background thread. This needs to be accessed
+   * with synchronization since it will be written from background thread.
+   */
+  private static final Map<Chunk, Buffers> chunkToBuffers = new HashMap<Chunk, Buffers>();
+
+  /**
+   * Assumes the blocks belong to the chunk specified.  Creates a mesh and buffers based on the
+   * blocks, stores in {@code }chunkToBuffers} with the chunk as the key.
+   */
+  void load(Chunk chunk, List<Block> blocks, Set<Block> allBlocks) {
     long start = SystemClock.uptimeMillis();
 
-    // SK: Debug.
-    Log.i(TAG, "-----------------------------------------------------------------");
-    Log.i(TAG, "Processing " + blocks.size() + " blocks...");
+    Log.i(TAG, "Loading " + chunk + ", " + blocks.size() + " blocks...");
 
+    Buffers buffers = createBuffers(blocks, allBlocks);
+    Log.i(TAG, "Squares: " + buffers.squares +
+        ", vertex buffers: " + buffers.vertexBuffer.limit() +
+        ", draw list buffers: " + buffers.drawListBuffer.limit() +
+        ", texture coordinate buffers: " + buffers.textureCoordBuffer.limit());
+
+    synchronized(chunkToBuffers) {
+      chunkToBuffers.put(chunk, buffers);
+      Log.i(TAG, "" + chunksLoaded() + " chunks loaded, " +
+          "spent " + (SystemClock.uptimeMillis() - start) + "ms");
+    }
+  }
+
+  void unload(Chunk chunk) {
+    Log.i(TAG, "Unloading " + chunk + "...");
+    synchronized(chunkToBuffers) {
+      chunkToBuffers.remove(chunk);
+      Log.i(TAG, "" + chunksLoaded() + " chunks loaded");
+    }
+  }
+
+  int chunksLoaded() {
+    synchronized(chunkToBuffers) {
+      return chunkToBuffers.keySet().size();
+    }
+  }
+
+  private Buffers createBuffers(List<Block> blocks, Set<Block> allBlocks) {
     VertexIndexTextureList vitList = new VertexIndexTextureList();
-    int squaresAdded = 0;
-    synchronized(blocks) {
-      for (Block block : blocks) {
-        // Only add faces that are not between two blocks and thus invisible.
-        if (!blocks.contains(new Block(block.x, block.y + 1, block.z))) {
-          addTopFace(vitList, block);
-          ++squaresAdded;
-        }
-
-        if (!blocks.contains(new Block(block.x, block.y, block.z + 1))) {
-          addFrontFace(vitList, block);
-          ++squaresAdded;
-        }
-        if (!blocks.contains(new Block(block.x - 1, block.y, block.z))) {
-          addLeftFace(vitList, block);
-          ++squaresAdded;
-        }
-        if (!blocks.contains(new Block(block.x + 1, block.y, block.z))) {
-          addRightFace(vitList, block);
-          ++squaresAdded;
-        }
-        if (!blocks.contains(new Block(block.x, block.y, block.z - 1))) {
-          addBackFace(vitList, block);
-          ++squaresAdded;
-        }
-
-        if (!blocks.contains(new Block(block.x, block.y - 1, block.z))) {
-          addBottomFace(vitList, block);
-          ++squaresAdded;
-        }
+    int squares = 0;
+    for (Block block : blocks) {
+      // Only add faces that are not between two blocks and thus invisible.
+      if (!allBlocks.contains(new Block(block.x, block.y + 1, block.z))) {
+        addTopFace(vitList, block);
+        ++squares;
+      }
+      if (!allBlocks.contains(new Block(block.x, block.y, block.z + 1))) {
+        addFrontFace(vitList, block);
+        ++squares;
+      }
+      if (!allBlocks.contains(new Block(block.x - 1, block.y, block.z))) {
+        addLeftFace(vitList, block);
+        ++squares;
+      }
+      if (!allBlocks.contains(new Block(block.x + 1, block.y, block.z))) {
+        addRightFace(vitList, block);
+        ++squares;
+      }
+      if (!allBlocks.contains(new Block(block.x, block.y, block.z - 1))) {
+        addBackFace(vitList, block);
+        ++squares;
+      }
+      if (!allBlocks.contains(new Block(block.x, block.y - 1, block.z))) {
+        addBottomFace(vitList, block);
+        ++squares;
       }
     }
 
-    synchronized(buffers) {
-      buffers.clear();
-      for (VertexIndexTextureList.VertexIndexTextureArray vita : vitList.vertexIndexTextureArrays()) {
-        Buffers b = new Buffers(
-            GlHelper.createFloatBuffer(vita.vertexArray),
-            GlHelper.createShortBuffer(vita.indexArray),
-            GlHelper.createFloatBuffer(vita.textureCoordArray));
-        buffers.add(b);
-      }
-
-      Log.i(TAG, "Squares: " + squaresAdded +
-          ", vertex buffers: " + vertexBufferLimits(buffers) +
-          ", draw list buffers: " + drawListBufferLimits(buffers) +
-          ", texture coordinate buffers: " + texCoordBufferLimits(buffers));
-    }
-    Log.i(TAG, "Spent " + (SystemClock.uptimeMillis() - start) + "ms");
-  }
-
-  private static String vertexBufferLimits(List<Buffers> buffers) {
-    boolean first = true;
-    StringBuilder result = new StringBuilder("[");
-    for (Buffers b : buffers) {
-      if (first) {
-        first = false;
-      } else {
-        result.append(", ");
-      }
-
-      result.append(b.vertexBuffer.limit());
-    }
-    return result.append("]").toString();
-  }
-
-  private static String drawListBufferLimits(List<Buffers> buffers) {
-    boolean first = true;
-    StringBuilder result = new StringBuilder("[");
-    for (Buffers b : buffers) {
-      if (first) {
-        first = false;
-      } else {
-        result.append(", ");
-      }
-
-      result.append(b.drawListBuffer.limit());
-    }
-    return result.append("]").toString();
-  }
-
-  private static String texCoordBufferLimits(List<Buffers> buffers) {
-    boolean first = true;
-    StringBuilder result = new StringBuilder("[");
-    for (Buffers b : buffers) {
-      if (first) {
-        first = false;
-      } else {
-        result.append(", ");
-      }
-
-      result.append(b.textureCoordBuffer.limit());
-    }
-    return result.append("]").toString();
+    return new Buffers(squares,
+        GlHelper.createFloatBuffer(vitList.getVertexArray()),
+        GlHelper.createShortBuffer(vitList.getIndexArray()),
+        GlHelper.createFloatBuffer(vitList.getTextureCoordArray()));
   }
 
   // OpenGL coordinates:
@@ -289,9 +262,9 @@ class SquareMesh {
     // Since model matrix is identity, MVP matrix is the same as VP matrix.
     GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, viewProjectionMatrix, 0);
 
-    // Draw all squares.
-    synchronized(buffers) {
-      for (Buffers b : buffers) {
+    // Draw buffers for all loaded chunks.
+    synchronized(chunkToBuffers) {
+      for (Buffers b : chunkToBuffers.values()) {
         GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, b.vertexBuffer);
         GLES20.glVertexAttribPointer(textureCoordHandle, 2, GLES20.GL_FLOAT, false, 0,
             b.textureCoordBuffer);

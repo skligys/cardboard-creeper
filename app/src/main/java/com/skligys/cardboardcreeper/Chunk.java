@@ -5,11 +5,11 @@ class Chunk extends Point3Int {
   private static final int CHUNK_SIZE = 16;
 
   Chunk(int x, int y, int z) {
-    super(x / CHUNK_SIZE, y / CHUNK_SIZE, z / CHUNK_SIZE);
+    super(x, y, z);
   }
 
   Chunk(Block block) {
-    this(block.x, block.y, block.z);
+    this(block.x / CHUNK_SIZE, block.y / CHUNK_SIZE, block.z / CHUNK_SIZE);
   }
 
   Chunk(Point3 position) {
@@ -21,6 +21,6 @@ class Chunk extends Point3Int {
   }
 
   @Override public String toString() {
-    return "Chunk{x=" + x + ", y=" + y + ", z=" + z + '}';
+    return "Chunk(" + x + ", " + y + ", " + z + ')';
   }
 }

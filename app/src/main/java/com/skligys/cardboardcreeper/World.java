@@ -6,13 +6,13 @@ import android.os.SystemClock;
 import android.util.Log;
 
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 
 /** Holds a randomly generated hilly landscape of blocks and Steve. */
@@ -30,16 +30,11 @@ class World {
 
   /** All blocks in the world. */
   private final Set<Block> blocks = new HashSet<Block>();
-  /**
-   * Shown blocks only. A block may be not shown if it is either blocked on all sides by
-   * neighboring blocks, or if the chunk it belongs to is not loaded.
-   */
-  private final Set<Block> shownBlocks = new HashSet<Block>();
   /** Maps chunk coordinates to a list of blocks inside the chunk. */
   private final Map<Chunk, List<Block>> chunkBlocks = new HashMap<Chunk, List<Block>>();
 
   /** OpenGL support for drawing grass blocks. */
-  private final SquareMesh squareMesh;
+  private final SquareMesh squareMesh = new SquareMesh();
   private final Performance performance = new Performance();
   private final Steve steve = new Steve();
   private final Physics physics = new Physics();
@@ -47,29 +42,46 @@ class World {
   /** Pre-allocated temporary matrix. */
   private final float[] viewProjectionMatrix = new float[16];
 
-  private static class ChunkChange {
-    private final Chunk beforeChunk;
-    private final Chunk afterChunk;
+  private static interface ChunkChange {}
 
-    ChunkChange(Chunk beforeChunk, Chunk afterChunk) {
-      this.beforeChunk = beforeChunk;
-      this.afterChunk = afterChunk;
+  private static class ChunkLoad implements ChunkChange {
+    private final Chunk chunk;
+
+    ChunkLoad(Chunk chunk) {
+      this.chunk = chunk;
     }
   }
-  private final Deque<ChunkChange> chunkChanges = new LinkedBlockingDeque<ChunkChange>();
+
+  private static class ChunkUnload implements ChunkChange {
+    private final Chunk chunk;
+
+    ChunkUnload(Chunk chunk) {
+      this.chunk = chunk;
+    }
+  }
+
+  private final BlockingDeque<ChunkChange> chunkChanges = new LinkedBlockingDeque<ChunkChange>();
   private final Thread chunkLoader;
 
   World(int xSize, int zSize) {
     this.xSize = xSize;
     this.zSize = zSize;
     randomHills();
-    computeShownBlocks(new Chunk(steve.position()));
-    // Pre-create the mesh out of only shownBlocks.
-    squareMesh = new SquareMesh(shownBlocks);
+    Chunk currChunk = new Chunk(steve.position());
+
+    // Pre-load a single center chunk with shown blocks.
+    squareMesh.load(currChunk, shownBlocks(chunkBlocks.get(currChunk)), blocks);
 
     // Start the thread to load chunks in the background.
     chunkLoader = createChunkLoader();
     chunkLoader.start();
+
+    // Schedule neighboring chunks to load in the background.
+    Set<Chunk> chunksToLoad = neighboringChunks(currChunk);
+    chunksToLoad.remove(currChunk);
+    for (Chunk chunk : chunksToLoad) {
+      chunkChanges.add(new ChunkLoad(chunk));
+    }
   }
 
   /** Fills in {@code blocks} and {@code chunkBlocks}. */
@@ -148,105 +160,13 @@ class World {
     return x * x + z * z <= radius * radius;
   }
 
-  /**
-   * Looks through all blocks within chunks neighboring the current chunk and adds to
-   * {@code shownBlocks} only those that are exposed, i.e. not completely surrounded on all sides.
-   */
-  private void computeShownBlocks(Chunk current) {
-    shownBlocks.clear();
-
+  private List<Block> shownBlocks(List<Block> blocks) {
+    List<Block> result = new ArrayList<Block>();
     for (Block block : blocks) {
-      Chunk chunk = new Chunk(block);
-      if (chunkShown(chunk, current) && exposed(block)) {
-        shownBlocks.add(block);
+      if (exposed(block)) {
+        result.add(block);
       }
     }
-  }
-
-  private static final int SHOWN_CHUNK_RADIUS = 3;
-
-  private static boolean chunkShown(Chunk chunk, Chunk current) {
-    return chunkShown(chunk.x - current.x, chunk.y - current.y, chunk.z - current.z);
-  }
-
-  private static boolean chunkShown(int dx, int dy, int dz) {
-    return dx * dx + dy * dy + dz * dz <= SHOWN_CHUNK_RADIUS * SHOWN_CHUNK_RADIUS;
-  }
-
-  /** Asynchronous chunk loader. */
-  private Thread createChunkLoader() {
-    Runnable runnable = new Runnable() {
-      @Override public void run() {
-        while (true) {
-          ChunkChange first = chunkChanges.peekFirst();
-          ChunkChange last = chunkChanges.peekLast();
-          if (first != null && last != null) {
-            chunkChanges.clear();
-            Chunk before = first.beforeChunk;
-            Chunk after = last.afterChunk;
-            Log.i(TAG, "Moving from chunk: " + before + " to " + after + "...");
-            long start = SystemClock.uptimeMillis();
-
-            changeChunk(before, after);
-            squareMesh.update(shownBlocks);
-
-            long elapsed = SystemClock.uptimeMillis() - start;
-            Log.i(TAG, "Loading chunks took " + elapsed + "ms");
-          }
-
-          SystemClock.sleep(1);
-        }
-      }
-    };
-    return new Thread(runnable);
-  }
-
-  private void changeChunk(Chunk beforeCurrChunk, Chunk afterCurrChunk) {
-    Set<Chunk> beforeShownChunks = new HashSet<Chunk>();
-    Set<Chunk> afterShownChunks = new HashSet<Chunk>();
-    for (int dx = -SHOWN_CHUNK_RADIUS; dx <= SHOWN_CHUNK_RADIUS; ++dx) {
-      for (int dy = -SHOWN_CHUNK_RADIUS; dy <= SHOWN_CHUNK_RADIUS; ++dy) {
-        for (int dz = -SHOWN_CHUNK_RADIUS; dz <= SHOWN_CHUNK_RADIUS; ++dz) {
-          if (!chunkShown(dx, dy, dz)) {
-            continue;
-          }
-          beforeShownChunks.add(beforeCurrChunk.plus(new Chunk(dx, dy, dz)));
-          afterShownChunks.add(afterCurrChunk.plus(new Chunk(dx, dy, dz)));
-        }
-      }
-    }
-
-    synchronized(shownBlocks) {
-      // showChunks = afterShownChunks \ beforeShownChunks
-      // hideChunks = beforeShownChunks \ afterShownChunks
-      for (Chunk chunk : setDiff(afterShownChunks, beforeShownChunks)) {
-        showChunk(chunk);
-      }
-      for (Chunk chunk : setDiff(beforeShownChunks, afterShownChunks)) {
-        hideChunk(chunk);
-      }
-    }
-  }
-
-  private void showChunk(Chunk chunk) {
-    for (Block block : chunkBlocks.get(chunk)) {
-      if (!shownBlocks.contains(block) && exposed(block)) {
-        shownBlocks.add(block);
-      }
-    }
-  }
-
-  private void hideChunk(Chunk chunk) {
-    for (Block block : chunkBlocks.get(chunk)) {
-      if (shownBlocks.contains(block)) {
-        shownBlocks.remove(block);
-      }
-    }
-  }
-
-  private static <T> Set<T> setDiff(Set<T> s1, Set<T> s2) {
-    Set<T> result = new HashSet<T>(s1);
-    result.removeAll(s2);
     return result;
   }
 
@@ -261,6 +181,57 @@ class World {
         !blocks.contains(new Block(block.x, block.y + 1, block.z)) ||
         !blocks.contains(new Block(block.x, block.y, block.z - 1)) ||
         !blocks.contains(new Block(block.x, block.y, block.z + 1));
+  }
+
+  private static final int SHOWN_CHUNK_RADIUS = 3;
+
+  /** Returns chunks within some radius of center, but only those containing any blocks. */
+  private Set<Chunk> neighboringChunks(Chunk center) {
+    Set<Chunk> result = new HashSet<Chunk>();
+    for (int dx = -SHOWN_CHUNK_RADIUS; dx <= SHOWN_CHUNK_RADIUS; ++dx) {
+      for (int dy = -SHOWN_CHUNK_RADIUS; dy <= SHOWN_CHUNK_RADIUS; ++dy) {
+        for (int dz = -SHOWN_CHUNK_RADIUS; dz <= SHOWN_CHUNK_RADIUS; ++dz) {
+          if (!chunkShown(dx, dy, dz)) {
+            continue;
+          }
+          Chunk chunk = center.plus(new Chunk(dx, dy, dz));
+          if (chunkBlocks.keySet().contains(chunk)) {
+            result.add(chunk);
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  private static boolean chunkShown(int dx, int dy, int dz) {
+    return dx * dx + dy * dy + dz * dz <= SHOWN_CHUNK_RADIUS * SHOWN_CHUNK_RADIUS;
+  }
+
+  /** Asynchronous chunk loader. */
+  private Thread createChunkLoader() {
+    Runnable runnable = new Runnable() {
+      @Override public void run() {
+        while (true) {
+          try {
+            ChunkChange cc = chunkChanges.takeFirst();
+            if (cc instanceof ChunkLoad) {
+              ChunkLoad cl = (ChunkLoad) cc;
+              squareMesh.load(cl.chunk, shownBlocks(chunkBlocks.get(cl.chunk)), blocks);
+            } else if (cc instanceof ChunkUnload) {
+              squareMesh.unload(((ChunkUnload) cc).chunk);
+            } else {
+              throw new RuntimeException("Unknown ChunkChange subtype: " + cc.getClass().getName());
+            }
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
+
+          SystemClock.sleep(1);
+        }
+      }
+    };
+    return new Thread(runnable);
   }
 
   void surfaceCreated(Resources resources) {
@@ -283,7 +254,7 @@ class World {
     Chunk beforeChunk = steve.currentChunk();
     Chunk afterChunk = new Chunk(eyePosition);
     if (!afterChunk.equals(beforeChunk)) {
-      chunkChanges.add(new ChunkChange(beforeChunk, afterChunk));
+      queueChunkLoads(beforeChunk, afterChunk);
       steve.setCurrentChunk(afterChunk);
     }
 
@@ -295,14 +266,37 @@ class World {
     float fps = performance.fps();
     if (fps > 0.0f) {
       Point3 position = steve.position();
-      String status = String.format("%f FPS (%f-%f), (%f, %f, %f), %d / %d blocks, " +
+      String status = String.format("%f FPS (%f-%f), " +
+          "(%f, %f, %f), " +
+          "%d / %d chunks, %d blocks, " +
           "physics: %dms, render: %dms",
           fps, performance.minFps(), performance.maxFps(),
-          position.x, position.y, position.z, shownBlocks.size(), blocks.size(),
+          position.x, position.y, position.z,
+          squareMesh.chunksLoaded(), chunkBlocks.keySet().size(), blocks.size(),
           performance.physicsSpent(), performance.renderSpent());
       Log.i(TAG, status);
     }
     performance.done();
+  }
+
+  private void queueChunkLoads(Chunk beforeChunk, Chunk afterChunk) {
+    Set<Chunk> beforeShownChunks = neighboringChunks(beforeChunk);
+    Set<Chunk> afterShownChunks = neighboringChunks(afterChunk);
+
+    // chunksToLoad = afterShownChunks \ beforeShownChunks
+    // chunksToUnload = beforeShownChunks \ afterShownChunks
+    for (Chunk chunk : setDiff(afterShownChunks, beforeShownChunks)) {
+      chunkChanges.add(new ChunkLoad(chunk));
+    }
+    for (Chunk chunk : setDiff(beforeShownChunks, afterShownChunks)) {
+      chunkChanges.add(new ChunkUnload(chunk));
+    }
+  }
+
+  private static <T> Set<T> setDiff(Set<T> s1, Set<T> s2) {
+    Set<T> result = new HashSet<T>(s1);
+    result.removeAll(s2);
+    return result;
   }
 
   void drag(float dx, float dy) {

@@ -4,17 +4,21 @@ import android.content.res.Resources;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
+import android.util.Log;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 class GlRenderer implements GLSurfaceView.Renderer {
+  private static final String TAG = "GlRenderer";
+
   private final Resources resources;
   private final float[] projectionMatrix = new float[16];
   private final World world;
 
   GlRenderer(Resources resources) {
     this.resources = resources;
+    Log.i(TAG, "-----------------------------------------------------------------");
     world = new World(160, 160);
   }
 
