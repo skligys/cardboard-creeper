@@ -1,10 +1,10 @@
-package com.skligys.cardboardcreeper;
+package com.skligys.cardboardcreeper.model;
 
 /** Immutable 3d integer coordinates of a point. */
-class Point3Int {
-  final int x;
-  final int y;
-  final int z;
+public class Point3Int {
+  public final int x;
+  public final int y;
+  public final int z;
 
   Point3Int(int x, int y, int z) {
     this.x = x;
@@ -18,7 +18,7 @@ class Point3Int {
     this.z = Math.round(z);
   }
 
-  Point3 toPoint3() {
+  public Point3 toPoint3() {
     return new Point3(x, y, z);
   }
 

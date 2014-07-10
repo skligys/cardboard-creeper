@@ -1,11 +1,11 @@
-package com.skligys.cardboardcreeper;
+package com.skligys.cardboardcreeper.model;
 
-class Block extends Point3Int {
-  Block(int x, int y, int z) {
+public class Block extends Point3Int {
+  public Block(int x, int y, int z) {
     super(x, y, z);
   }
 
-  Block(float x, float y, float z) {
+  public Block(float x, float y, float z) {
     super(x, y, z);
   }
 

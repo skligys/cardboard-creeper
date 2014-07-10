@@ -2,6 +2,9 @@ package com.skligys.cardboardcreeper;
 
 import android.opengl.Matrix;
 
+import com.skligys.cardboardcreeper.model.Point2;
+import com.skligys.cardboardcreeper.model.Point3;
+
 class Eye {
   /** Eye position. */
   private Point3 position;

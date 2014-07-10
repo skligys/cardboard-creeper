@@ -1,22 +1,22 @@
-package com.skligys.cardboardcreeper;
+package com.skligys.cardboardcreeper.model;
 
 /** Immutable 3d coordinates of a point. */
-class Point3 {
-  final float x;
-  final float y;
-  final float z;
+public class Point3 {
+  public final float x;
+  public final float y;
+  public final float z;
 
-  Point3(float x, float y, float z) {
+  public Point3(float x, float y, float z) {
     this.x = x;
     this.y = y;
     this.z = z;
   }
 
-  Point3 plus(Point3 p2) {
+  public Point3 plus(Point3 p2) {
     return new Point3(x + p2.x, y + p2.y, z + p2.z);
   }
 
-  Point3 times(float mult) {
+  public Point3 times(float mult) {
     return new Point3(mult * x, mult * y, mult * z);
   }
 

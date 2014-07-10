@@ -5,6 +5,10 @@ import android.opengl.GLES20;
 import android.os.SystemClock;
 import android.util.Log;
 
+import com.skligys.cardboardcreeper.model.Block;
+import com.skligys.cardboardcreeper.model.Chunk;
+import com.skligys.cardboardcreeper.model.Point3;
+
 import java.nio.FloatBuffer;
 import java.nio.ShortBuffer;
 import java.util.HashMap;

@@ -2,6 +2,9 @@ package com.skligys.cardboardcreeper;
 
 import android.util.Log;
 
+import com.skligys.cardboardcreeper.model.Block;
+import com.skligys.cardboardcreeper.model.Point3;
+
 import java.util.HashSet;
 import java.util.Set;
 

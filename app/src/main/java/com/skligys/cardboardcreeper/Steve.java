@@ -1,5 +1,9 @@
 package com.skligys.cardboardcreeper;
 
+import com.skligys.cardboardcreeper.model.Block;
+import com.skligys.cardboardcreeper.model.Chunk;
+import com.skligys.cardboardcreeper.model.Point3;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -8,17 +12,23 @@ class Steve {
   private static final float STEVE_HITBOX_HEIGHT = 1.8f;  // meters from feet.
   private static final float STEVE_HITBOX_WIDTH = 0.6f;  // meters
 
-  /**
-   * Initially, the eye is located at (0, 0) in xz plane, at height 2.12 (feet to eye 1.62 +
-   * 0.5 displacement from block the feet are on).
-   */
-  private final Eye eye = new Eye(0.0f, 0.50001f + STEVE_EYE_LEVEL, 0.0f);
+  private final Eye eye;
   private boolean walking = false;
   /** Speed in axis y direction (up), in m/s. */
   private float verticalSpeed = 0.0f;
 
   private final Object currentChunkLock = new Object();
-  private Chunk currentChunk = new Chunk(0, 0, 0);
+  private Chunk currentChunk;
+
+  /** Create Steve based on block he is standing on. */
+  Steve(Block block) {
+    /**
+     * Initially, the eye is located at (block.x, block.z) in xz plane, at height block.y + 2.12
+     * (feet to eye 1.62 + 0.5 displacement from block the feet are on).
+     */
+    eye = new Eye(block.x, block.y + 0.50001f + STEVE_EYE_LEVEL, block.z);
+    currentChunk = new Chunk(block);
+  }
 
   void walk(boolean start) {
     walking = start;

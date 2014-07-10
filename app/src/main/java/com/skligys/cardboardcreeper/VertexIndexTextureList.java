@@ -1,5 +1,8 @@
 package com.skligys.cardboardcreeper;
 
+import com.skligys.cardboardcreeper.model.Block;
+import com.skligys.cardboardcreeper.model.Point3;
+
 import java.util.ArrayList;
 import java.util.List;
 

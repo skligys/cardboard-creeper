@@ -5,6 +5,11 @@ import android.opengl.Matrix;
 import android.os.SystemClock;
 import android.util.Log;
 
+import com.skligys.cardboardcreeper.model.Block;
+import com.skligys.cardboardcreeper.model.Chunk;
+import com.skligys.cardboardcreeper.model.Point3;
+import com.skligys.cardboardcreeper.perlin.Generator;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,6 +33,8 @@ class World {
   private final int xSize;
   private final int zSize;
 
+  /** Perlin 3d noise based world generator. */
+  private final Generator generator;
   /** All blocks in the world. */
   private final Set<Block> blocks = new HashSet<Block>();
   /** Maps chunk coordinates to a list of blocks inside the chunk. */
@@ -36,7 +43,7 @@ class World {
   /** OpenGL support for drawing grass blocks. */
   private final SquareMesh squareMesh = new SquareMesh();
   private final Performance performance = new Performance();
-  private final Steve steve = new Steve();
+  private final Steve steve;
   private final Physics physics = new Physics();
 
   /** Pre-allocated temporary matrix. */
@@ -66,8 +73,14 @@ class World {
   World(int xSize, int zSize) {
     this.xSize = xSize;
     this.zSize = zSize;
-    randomHills();
-    Chunk currChunk = new Chunk(steve.position());
+
+    long start = SystemClock.uptimeMillis();
+    generator = new Generator(new Random().nextInt());
+    perlinHills();
+    steve = new Steve(startPosition());
+    Chunk currChunk = steve.currentChunk();
+    long elapsed = SystemClock.uptimeMillis() - start;
+    Log.i(TAG, "Generated " + chunkBlocks.keySet().size() + " chunks in " + elapsed + "ms");
 
     // Pre-load a single center chunk with shown blocks.
     squareMesh.load(currChunk, shownBlocks(chunkBlocks.get(currChunk)), blocks);
@@ -84,45 +97,24 @@ class World {
     }
   }
 
-  /** Fills in {@code blocks} and {@code chunkBlocks}. */
-  private void randomHills() {
+  /** Adds blocks generated based on 3d Perlin noise. */
+  // TODO: Generate and load chunks on demand.
+  private void perlinHills() {
     clearBlocks();
 
-    // Create a layer of grass everywhere.
-    for (int x = -xSize / 2; x <= xSize / 2; ++x) {
-      for (int z = -zSize / 2; z <= zSize / 2; ++z) {
-        addBlock(new Block(x, 0, z));
-        // 3 blocks high walls at the end of the world.
-        if (x == -xSize / 2 || x == xSize / 2 || z == -zSize / 2 || z == zSize / 2) {
-          for (int y = 1; y <= 3; ++y) {
-            addBlock(new Block(x, y, z));
+    int minXChunk = -xSize / (2 * Chunk.CHUNK_SIZE);
+    int maxXChunk = -minXChunk;
+    int minZChunk = -zSize / (2 * Chunk.CHUNK_SIZE);
+    int maxZChunk = -minZChunk;
+    int minYChunk = Generator.minElevation() / Chunk.CHUNK_SIZE;
+    int maxYChunk = (Generator.maxElevation() + Chunk.CHUNK_SIZE - 1) / Chunk.CHUNK_SIZE;
+    for (int x = minXChunk; x <= maxXChunk; ++x) {
+      for (int y = minYChunk; y <= maxYChunk; ++y) {
+        for (int z = minZChunk; z <= maxZChunk; ++z) {
+          for (Block block: generator.generateChunk(new Chunk(x, y, z))) {
+            addBlock(block);
           }
         }
-      }
-    }
-
-    // Random hills.  120 hills for 160x160 size.
-    Random r = new Random();
-    // Hill centers are not allowed within 10 blocks from the end of the world, so that hills
-    // wouldn't allow jumping over the fence and into the infinite void.
-    int hillCount = (xSize - 20) * (zSize - 20) / 163;
-    for (int i = 0; i < hillCount; ++i) {
-      int xCenter = randomInt(r, -xSize / 2 + 10, xSize / 2 - 10);
-      int zCenter = randomInt(r, -zSize / 2 + 10, zSize / 2 - 10);
-      int height = randomInt(r, 1, 6);
-      int radius = randomInt(r, 5, 9);
-      for (int y = 1; y <= height; ++y) {
-        for (int x = xCenter - radius; x <= xCenter + radius; ++x) {
-          for (int z = zCenter - radius; z <= zCenter + radius; ++z) {
-            if (insideBounds(x, z) &&
-                insideHill(x, z, xCenter, zCenter, radius) &&
-                !insideCenterCylinder(x, z, 5)) {
-              addBlock(new Block(x, y, z));
-            }
-          }
-        }
-        // Taper the hill as you go up.
-        --radius;
       }
     }
   }
@@ -144,20 +136,34 @@ class World {
     blocksInChunk.add(block);
   }
 
-  private static int randomInt(Random r, int min, int max) {
-    return r.nextInt(max - min + 1) + min;
+  /**
+   * Looks through chunks with xz == (0, 0), finds the highest block with xz coordinate (0, 0)
+   * and returns it.
+   */
+  private Block startPosition() {
+    int maxY = highestSolidY(0, 0);
+    return new Block(0, maxY, 0);
   }
 
-  private boolean insideBounds(int x, int z) {
-    return x >= -xSize / 2 && x <= xSize / 2 && z >= -zSize / 2 && z <= zSize / 2;
-  }
-
-  private boolean insideHill(int x, int z, int xCenter, int zCenter, int radius) {
-    return (x - xCenter) * (x - xCenter) + (z - zCenter) * (z - zCenter) <= radius * radius;
-  }
-
-  private boolean insideCenterCylinder(int x, int z, int radius) {
-    return x * x + z * z <= radius * radius;
+  /** Given (x,z) coordinates, finds and returns the highest y so that (x,y,z) is a solid block. */
+  private int highestSolidY(int x, int z) {
+    int maxY = Generator.minElevation();
+    int chunkX = x / Chunk.CHUNK_SIZE;
+    int chunkZ = z / Chunk.CHUNK_SIZE;
+    for (Chunk chunk : chunkBlocks.keySet()) {
+      if (chunk.x != chunkX || chunk.z != chunkZ) {
+        continue;
+      }
+      for (Block block : chunkBlocks.get(chunk)) {
+        if (block.x != x || block.z != z) {
+          continue;
+        }
+        if (block.y > maxY) {
+          maxY = block.y;
+        }
+      }
+    }
+    return maxY;
   }
 
   private List<Block> shownBlocks(List<Block> blocks) {
