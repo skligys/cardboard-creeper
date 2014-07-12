@@ -9,7 +9,8 @@
       android:allowBackup="true"
       android:icon="@drawable/ic_launcher"
       android:label="@string/app_name"
-      android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+      android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+      android:largeHeap="true">
     <activity
         android:name="com.skligys.cardboardcreeper.MainActivity"
         android:label="@string/app_name"
