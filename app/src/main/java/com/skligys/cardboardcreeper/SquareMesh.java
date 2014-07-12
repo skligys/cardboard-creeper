@@ -2,8 +2,6 @@ package com.skligys.cardboardcreeper;
 
 import android.content.res.Resources;
 import android.opengl.GLES20;
-import android.os.SystemClock;
-import android.util.Log;
 
 import com.skligys.cardboardcreeper.model.Block;
 import com.skligys.cardboardcreeper.model.Chunk;
@@ -17,8 +15,6 @@ import java.util.Map;
 import java.util.Set;
 
 class SquareMesh {
-  private static final String TAG = "SquareMesh";
-
   // Initialized during surface creation.
   private int program;
   private int textureData;
@@ -27,14 +23,11 @@ class SquareMesh {
   private int textureCoordHandle;
 
   private static class Buffers {
-    private final int squares;
     private final FloatBuffer vertexBuffer;
     private final ShortBuffer drawListBuffer;
     private final FloatBuffer textureCoordBuffer;
 
-    Buffers(int squares, FloatBuffer vertexBuffer, ShortBuffer drawListBuffer,
-            FloatBuffer textureCoordBuffer) {
-      this.squares = squares;
+    Buffers(FloatBuffer vertexBuffer, ShortBuffer drawListBuffer, FloatBuffer textureCoordBuffer) {
       this.vertexBuffer = vertexBuffer;
       this.drawListBuffer = drawListBuffer;
       this.textureCoordBuffer = textureCoordBuffer;
@@ -52,28 +45,15 @@ class SquareMesh {
    * blocks, stores in {@code }chunkToBuffers} with the chunk as the key.
    */
   void load(Chunk chunk, List<Block> blocks, Set<Block> allBlocks) {
-    long start = SystemClock.uptimeMillis();
-
-    Log.i(TAG, "Loading " + chunk + ", " + blocks.size() + " blocks...");
-
     Buffers buffers = createBuffers(blocks, allBlocks);
-    Log.i(TAG, "Squares: " + buffers.squares +
-        ", vertex buffers: " + buffers.vertexBuffer.limit() +
-        ", draw list buffers: " + buffers.drawListBuffer.limit() +
-        ", texture coordinate buffers: " + buffers.textureCoordBuffer.limit());
-
     synchronized(chunkToBuffers) {
       chunkToBuffers.put(chunk, buffers);
-      Log.i(TAG, "" + chunksLoaded() + " chunks loaded, " +
-          "spent " + (SystemClock.uptimeMillis() - start) + "ms");
     }
   }
 
   void unload(Chunk chunk) {
-    Log.i(TAG, "Unloading " + chunk + "...");
     synchronized(chunkToBuffers) {
       chunkToBuffers.remove(chunk);
-      Log.i(TAG, "" + chunksLoaded() + " chunks loaded");
     }
   }
 
@@ -85,36 +65,29 @@ class SquareMesh {
 
   private Buffers createBuffers(List<Block> blocks, Set<Block> allBlocks) {
     VertexIndexTextureList vitList = new VertexIndexTextureList();
-    int squares = 0;
     for (Block block : blocks) {
       // Only add faces that are not between two blocks and thus invisible.
       if (!allBlocks.contains(new Block(block.x, block.y + 1, block.z))) {
         addTopFace(vitList, block);
-        ++squares;
       }
       if (!allBlocks.contains(new Block(block.x, block.y, block.z + 1))) {
         addFrontFace(vitList, block);
-        ++squares;
       }
       if (!allBlocks.contains(new Block(block.x - 1, block.y, block.z))) {
         addLeftFace(vitList, block);
-        ++squares;
       }
       if (!allBlocks.contains(new Block(block.x + 1, block.y, block.z))) {
         addRightFace(vitList, block);
-        ++squares;
       }
       if (!allBlocks.contains(new Block(block.x, block.y, block.z - 1))) {
         addBackFace(vitList, block);
-        ++squares;
       }
       if (!allBlocks.contains(new Block(block.x, block.y - 1, block.z))) {
         addBottomFace(vitList, block);
-        ++squares;
       }
     }
 
-    return new Buffers(squares,
+    return new Buffers(
         GlHelper.createFloatBuffer(vitList.getVertexArray()),
         GlHelper.createShortBuffer(vitList.getIndexArray()),
         GlHelper.createFloatBuffer(vitList.getTextureCoordArray()));

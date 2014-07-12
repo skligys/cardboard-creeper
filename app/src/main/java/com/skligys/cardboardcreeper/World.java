@@ -176,17 +176,21 @@ class World {
           try {
             ChunkChange cc = chunkChanges.takeFirst();
             if (cc instanceof ChunkLoad) {
+              performance.startChunkLoad();
               Chunk chunk = ((ChunkLoad) cc).chunk;
               synchronized(blocksLock) {
                 loadChunk(chunk);
                 squareMesh.load(chunk, shownBlocks(chunkBlocks.get(chunk)), blocks);
               }
+              performance.endChunkLoad();
             } else if (cc instanceof ChunkUnload) {
+              performance.startChunkUnload();
               Chunk chunk = ((ChunkUnload) cc).chunk;
               synchronized(blocksLock) {
                 unloadChunk(chunk);
                 squareMesh.unload(chunk);
               }
+              performance.endChunkUnload();
             } else {
               throw new RuntimeException("Unknown ChunkChange subtype: " + cc.getClass().getName());
             }
@@ -208,7 +212,6 @@ class World {
     }
 
     List<Block> blocksInChunk = generator.generateChunk(chunk);
-    Log.i(TAG, "Loading chunk " + chunk + ", " + blocksInChunk.size() + " blocks");
     addChunkBlocks(chunk, blocksInChunk);
   }
 
@@ -222,7 +225,6 @@ class World {
     if (blocksInChunk == null) {
       return;
     }
-    Log.i(TAG, "Unloading chunk " + chunk + ", " + blocksInChunk.size() + " blocks");
     chunkBlocks.remove(chunk);
     blocks.removeAll(blocksInChunk);
   }
@@ -259,8 +261,8 @@ class World {
   }
 
   void draw(float[] projectionMatrix) {
-    // This has to be first to have up to date tick timestamp for FPS computation.
-    float dt = Math.min(performance.tick(), 0.2f);
+    // This has to be first to have up to date startFrame timestamp for FPS computation.
+    float dt = Math.min(performance.startFrame(), 0.2f);
 
     performance.startPhysics();
     Point3 eyePosition = null;
@@ -285,23 +287,43 @@ class World {
     squareMesh.draw(viewProjectionMatrix);
     performance.endRendering();
 
-    float fps = performance.fps();
-    if (fps > 0.0f) {
-      Point3 position = steve.position();
+    if (performance.hasStats()) {
       String status;
       synchronized(blocksLock) {
-        status = String.format("%f FPS (%f-%f), " +
-                "(%f, %f, %f), " +
+        status = String.format(">>>>> %f FPS (%f-%f), " +
+                "%s\n" +
                 "%d / %d chunks, %d blocks, " +
-                "physics: %dms, render: %dms",
-            fps, performance.minFps(), performance.maxFps(),
-            position.x, position.y, position.z,
+                "physics: %dms, render: %dms, " +
+                "chunk load: %dx%dms, " +
+                "chunk unload: %dx%dms",
+            performance.fps(), performance.minFps(), performance.maxFps(),
+            formatFpsPercentages(performance.fpsPercentages()),
             squareMesh.chunksLoaded(), chunkBlocks.keySet().size(), blocks.size(),
-            performance.physicsSpent(), performance.renderSpent());
+            performance.physicsSpent(), performance.renderSpent(),
+            performance.chunkLoadCount(), performance.chunkLoadSpent(),
+            performance.chunkUnloadCount(), performance.chunkUnloadSpent());
       }
       Log.i(TAG, status);
     }
-    performance.done();
+    performance.endFrame();
+  }
+
+  private static String formatFpsPercentages(float[] percentages) {
+    StringBuilder sb = new StringBuilder("(");
+    boolean first = true;
+    for (int i = 0; i < percentages.length; ++i) {
+      if (first) {
+        first = false;
+      } else {
+        sb.append(", ");
+      }
+      sb.append(Performance.FPS_THRESHOLDS[i]);
+      sb.append(": ");
+      sb.append(percentages[i]);
+      sb.append("%");
+    }
+    sb.append(")");
+    return sb.toString();
   }
 
   private void queueChunkLoads(Chunk beforeChunk, Chunk afterChunk) {
