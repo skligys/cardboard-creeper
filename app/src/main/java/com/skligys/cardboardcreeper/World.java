@@ -32,10 +32,16 @@ class World {
   /** Perlin 3d noise based world generator. */
   private final Generator generator;
 
+  /** Lock for synchronizing access to blocks and chunkBlocks from GL and chunk loader threads. */
   private final Object blocksLock = new Object();
-  /** All blocks in the world. */
+  /**
+   * All blocks in the world.  Written from chunk loader thread.  Read from chunk loader thread
+   * to create per chunk meshes and from GL thread to perform physics updates per frame. */
   private final Set<Block> blocks = new HashSet<Block>();
-  /** Maps chunk coordinates to a list of blocks inside the chunk. */
+  /**
+   * Maps chunk coordinates to a list of blocks inside the chunk.  Written from chunk loader thread.
+   * Read from chunk loader thread to create per chunk meshes and from GL thread during
+   * initialization to determine initial Steve's position. */
   private final Map<Chunk, List<Block>> chunkBlocks = new HashMap<Chunk, List<Block>>();
 
   /** OpenGL support for drawing grass blocks. */
@@ -69,29 +75,25 @@ class World {
   private final Thread chunkLoader;
 
   World() {
-    long start = SystemClock.uptimeMillis();
     generator = new Generator(new Random().nextInt());
 
-    List<Chunk> preloadedChunks;
-    synchronized(blocksLock) {
-      preloadedChunks = preloadChunks();
-      for (Chunk chunk : preloadedChunks) {
-        squareMesh.load(chunk, shownBlocks(chunkBlocks.get(chunk)), blocks);
-      }
-    }
+    // Start the thread for loading chunks in the background.
+    chunkLoader = createChunkLoader();
+    chunkLoader.start();
 
-    long elapsed = SystemClock.uptimeMillis() - start;
-    synchronized(blocksLock) {
-      Log.i(TAG, "Generated " + chunkBlocks.keySet().size() + " chunks in " + elapsed + "ms");
+    List<Chunk> preloadedChunks = preloadedChunks();
+    for (Chunk chunk : preloadedChunks) {
+      chunkChanges.add(new ChunkLoad(chunk));
+    }
+    // Wait for the background thread to finish loading all of them.  The whole stack of chunks
+    // around the starting position is needed to determine Steve's initial position's y coordinate.
+    while (chunkChanges.size() > 0) {
+      SystemClock.sleep(100L);
     }
 
     int startX = Chunk.CHUNK_SIZE / 2;
     int startZ = Chunk.CHUNK_SIZE / 2;
     steve = new Steve(startPosition(startX, startZ));
-
-    // Start the thread to load neighboring chunks in the background.
-    chunkLoader = createChunkLoader();
-    chunkLoader.start();
 
     // Schedule neighboring chunks to load in the background.
     Chunk currChunk = steve.currentChunk();
@@ -102,7 +104,7 @@ class World {
     }
   }
 
-  private List<Chunk> preloadChunks() {
+  private List<Chunk> preloadedChunks() {
     // Generate a stack of chunks around the starting position (8, 8), other chunks will be loaded
     // in the background.
     int minYChunk = Generator.minElevation() / Chunk.CHUNK_SIZE;
@@ -110,37 +112,9 @@ class World {
 
     List<Chunk> preloadedChunks = new ArrayList<Chunk>();
     for (int y = minYChunk; y <= maxYChunk; ++y) {
-      Chunk chunk = new Chunk(0, y, 0);
-      loadChunk(chunk);
-      preloadedChunks.add(chunk);
+      preloadedChunks.add(new Chunk(0, y, 0));
     }
     return preloadedChunks;
-  }
-
-  /** Adds blocks within a single chunk generated based on 3d Perlin noise. */
-  private void loadChunk(Chunk chunk) {
-    if (chunkBlocks.keySet().contains(chunk)) {
-      return;
-    }
-
-    List<Block> blocksInChunk = generator.generateChunk(chunk);
-    Log.i(TAG, "Loading chunk " + chunk + ", " + blocksInChunk.size() + " blocks");
-    addChunkBlocks(chunk, blocksInChunk);
-  }
-
-  private void addChunkBlocks(Chunk chunk, List<Block> blocksInChunk) {
-    blocks.addAll(blocksInChunk);
-    chunkBlocks.put(chunk, blocksInChunk);
-  }
-
-  private void unloadChunk(Chunk chunk) {
-    List<Block> blocksInChunk = chunkBlocks.get(chunk);
-    if (blocksInChunk == null) {
-      return;
-    }
-    Log.i(TAG, "Unloading chunk " + chunk + ", " + blocksInChunk.size() + " blocks");
-    chunkBlocks.remove(chunk);
-    blocks.removeAll(blocksInChunk);
   }
 
   /** Finds the highest solid block with given xz coordinates and returns it. */
@@ -169,33 +143,6 @@ class World {
       }
     }
     return maxY;
-  }
-
-  private List<Block> shownBlocks(List<Block> blocks) {
-    List<Block> result = new ArrayList<Block>();
-    if (blocks == null) {
-      return result;
-    }
-
-    for (Block block : blocks) {
-      if (exposed(block)) {
-        result.add(block);
-      }
-    }
-    return result;
-  }
-
-  /**
-   * Checks all 6 faces of the given block and returns true if at least one face is not covered
-   * by another block in {@code blocks}.
-   */
-  private boolean exposed(Block block) {
-    return !blocks.contains(new Block(block.x - 1, block.y, block.z)) ||
-        !blocks.contains(new Block(block.x + 1, block.y, block.z)) ||
-        !blocks.contains(new Block(block.x, block.y - 1, block.z)) ||
-        !blocks.contains(new Block(block.x, block.y + 1, block.z)) ||
-        !blocks.contains(new Block(block.x, block.y, block.z - 1)) ||
-        !blocks.contains(new Block(block.x, block.y, block.z + 1));
   }
 
   private static final int SHOWN_CHUNK_RADIUS = 3;
@@ -252,6 +199,59 @@ class World {
       }
     };
     return new Thread(runnable);
+  }
+
+  /** Adds blocks within a single chunk generated based on 3d Perlin noise. */
+  private void loadChunk(Chunk chunk) {
+    if (chunkBlocks.keySet().contains(chunk)) {
+      return;
+    }
+
+    List<Block> blocksInChunk = generator.generateChunk(chunk);
+    Log.i(TAG, "Loading chunk " + chunk + ", " + blocksInChunk.size() + " blocks");
+    addChunkBlocks(chunk, blocksInChunk);
+  }
+
+  private void addChunkBlocks(Chunk chunk, List<Block> blocksInChunk) {
+    blocks.addAll(blocksInChunk);
+    chunkBlocks.put(chunk, blocksInChunk);
+  }
+
+  private void unloadChunk(Chunk chunk) {
+    List<Block> blocksInChunk = chunkBlocks.get(chunk);
+    if (blocksInChunk == null) {
+      return;
+    }
+    Log.i(TAG, "Unloading chunk " + chunk + ", " + blocksInChunk.size() + " blocks");
+    chunkBlocks.remove(chunk);
+    blocks.removeAll(blocksInChunk);
+  }
+
+  private List<Block> shownBlocks(List<Block> blocks) {
+    List<Block> result = new ArrayList<Block>();
+    if (blocks == null) {
+      return result;
+    }
+
+    for (Block block : blocks) {
+      if (exposed(block)) {
+        result.add(block);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Checks all 6 faces of the given block and returns true if at least one face is not covered
+   * by another block in {@code blocks}.
+   */
+  private boolean exposed(Block block) {
+    return !blocks.contains(new Block(block.x - 1, block.y, block.z)) ||
+        !blocks.contains(new Block(block.x + 1, block.y, block.z)) ||
+        !blocks.contains(new Block(block.x, block.y - 1, block.z)) ||
+        !blocks.contains(new Block(block.x, block.y + 1, block.z)) ||
+        !blocks.contains(new Block(block.x, block.y, block.z - 1)) ||
+        !blocks.contains(new Block(block.x, block.y, block.z + 1));
   }
 
   void surfaceCreated(Resources resources) {
