@@ -9,8 +9,8 @@ import net.royawesome.jlibnoise.module.combiner.Multiply;
 import net.royawesome.jlibnoise.module.modifier.Clamp;
 import net.royawesome.jlibnoise.module.modifier.ScalePoint;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Generator {
   private static final int MIN_FOREST_HILLS_Y = 46;
@@ -32,7 +32,7 @@ public class Generator {
   }
 
   /** Generates blocks for a single chunk. */
-  public Set<Block> generateChunk(Chunk chunk) {
+  public List<Block> generateChunk(Chunk chunk) {
     int xOffset = chunk.x * Chunk.CHUNK_SIZE;
     int yOffset = chunk.y * Chunk.CHUNK_SIZE;
     int zOffset = chunk.z * Chunk.CHUNK_SIZE;
@@ -43,7 +43,7 @@ public class Generator {
     float maxElevation = MAX_FOREST_HILLS_Y;
     float height = 0.5f * (maxElevation - minElevation);
 
-    Set<Block> result = new HashSet<Block>();
+    List<Block> result = new ArrayList<Block>();
     for (int x = 0; x < Chunk.CHUNK_SIZE; ++x) {
       for (int y = 0; y < Chunk.CHUNK_SIZE; ++y) {
         for (int z = 0; z < Chunk.CHUNK_SIZE; ++z) {

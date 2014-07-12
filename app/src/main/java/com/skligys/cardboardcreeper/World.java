@@ -29,12 +29,10 @@ class World {
    */
   private static final int PHYSICS_ITERATIONS_PER_FRAME = 5;
 
-  // World size in x and z directions.
-  private final int xSize;
-  private final int zSize;
-
   /** Perlin 3d noise based world generator. */
   private final Generator generator;
+
+  private final Object blocksLock = new Object();
   /** All blocks in the world. */
   private final Set<Block> blocks = new HashSet<Block>();
   /** Maps chunk coordinates to a list of blocks inside the chunk. */
@@ -70,79 +68,84 @@ class World {
   private final BlockingDeque<ChunkChange> chunkChanges = new LinkedBlockingDeque<ChunkChange>();
   private final Thread chunkLoader;
 
-  World(int xSize, int zSize) {
-    this.xSize = xSize;
-    this.zSize = zSize;
-
+  World() {
     long start = SystemClock.uptimeMillis();
     generator = new Generator(new Random().nextInt());
-    perlinHills();
-    steve = new Steve(startPosition());
-    Chunk currChunk = steve.currentChunk();
+
+    List<Chunk> preloadedChunks;
+    synchronized(blocksLock) {
+      preloadedChunks = preloadChunks();
+      for (Chunk chunk : preloadedChunks) {
+        squareMesh.load(chunk, shownBlocks(chunkBlocks.get(chunk)), blocks);
+      }
+    }
+
     long elapsed = SystemClock.uptimeMillis() - start;
-    Log.i(TAG, "Generated " + chunkBlocks.keySet().size() + " chunks in " + elapsed + "ms");
+    synchronized(blocksLock) {
+      Log.i(TAG, "Generated " + chunkBlocks.keySet().size() + " chunks in " + elapsed + "ms");
+    }
 
-    // Pre-load a single center chunk with shown blocks.
-    squareMesh.load(currChunk, shownBlocks(chunkBlocks.get(currChunk)), blocks);
+    int startX = Chunk.CHUNK_SIZE / 2;
+    int startZ = Chunk.CHUNK_SIZE / 2;
+    steve = new Steve(startPosition(startX, startZ));
 
-    // Start the thread to load chunks in the background.
+    // Start the thread to load neighboring chunks in the background.
     chunkLoader = createChunkLoader();
     chunkLoader.start();
 
     // Schedule neighboring chunks to load in the background.
+    Chunk currChunk = steve.currentChunk();
     Set<Chunk> chunksToLoad = neighboringChunks(currChunk);
-    chunksToLoad.remove(currChunk);
+    chunksToLoad.removeAll(preloadedChunks);
     for (Chunk chunk : chunksToLoad) {
       chunkChanges.add(new ChunkLoad(chunk));
     }
   }
 
-  /** Adds blocks generated based on 3d Perlin noise. */
-  // TODO: Generate and load chunks on demand.
-  private void perlinHills() {
-    clearBlocks();
-
-    int minXChunk = -xSize / (2 * Chunk.CHUNK_SIZE);
-    int maxXChunk = -minXChunk;
-    int minZChunk = -zSize / (2 * Chunk.CHUNK_SIZE);
-    int maxZChunk = -minZChunk;
+  private List<Chunk> preloadChunks() {
+    // Generate a stack of chunks around the starting position (8, 8), other chunks will be loaded
+    // in the background.
     int minYChunk = Generator.minElevation() / Chunk.CHUNK_SIZE;
     int maxYChunk = (Generator.maxElevation() + Chunk.CHUNK_SIZE - 1) / Chunk.CHUNK_SIZE;
-    for (int x = minXChunk; x <= maxXChunk; ++x) {
-      for (int y = minYChunk; y <= maxYChunk; ++y) {
-        for (int z = minZChunk; z <= maxZChunk; ++z) {
-          for (Block block: generator.generateChunk(new Chunk(x, y, z))) {
-            addBlock(block);
-          }
-        }
-      }
+
+    List<Chunk> preloadedChunks = new ArrayList<Chunk>();
+    for (int y = minYChunk; y <= maxYChunk; ++y) {
+      Chunk chunk = new Chunk(0, y, 0);
+      loadChunk(chunk);
+      preloadedChunks.add(chunk);
     }
+    return preloadedChunks;
   }
 
-  private void clearBlocks() {
-    blocks.clear();
-    chunkBlocks.clear();
+  /** Adds blocks within a single chunk generated based on 3d Perlin noise. */
+  private void loadChunk(Chunk chunk) {
+    if (chunkBlocks.keySet().contains(chunk)) {
+      return;
+    }
+
+    List<Block> blocksInChunk = generator.generateChunk(chunk);
+    Log.i(TAG, "Loading chunk " + chunk + ", " + blocksInChunk.size() + " blocks");
+    addChunkBlocks(chunk, blocksInChunk);
   }
 
-  private void addBlock(Block block) {
-    blocks.add(block);
+  private void addChunkBlocks(Chunk chunk, List<Block> blocksInChunk) {
+    blocks.addAll(blocksInChunk);
+    chunkBlocks.put(chunk, blocksInChunk);
+  }
 
-    Chunk chunk = new Chunk(block);
+  private void unloadChunk(Chunk chunk) {
     List<Block> blocksInChunk = chunkBlocks.get(chunk);
     if (blocksInChunk == null) {
-      blocksInChunk = new ArrayList<Block>();
-      chunkBlocks.put(chunk, blocksInChunk);
+      return;
     }
-    blocksInChunk.add(block);
+    Log.i(TAG, "Unloading chunk " + chunk + ", " + blocksInChunk.size() + " blocks");
+    chunkBlocks.remove(chunk);
+    blocks.removeAll(blocksInChunk);
   }
 
-  /**
-   * Looks through chunks with xz == (0, 0), finds the highest block with xz coordinate (0, 0)
-   * and returns it.
-   */
-  private Block startPosition() {
-    int maxY = highestSolidY(0, 0);
-    return new Block(0, maxY, 0);
+  /** Finds the highest solid block with given xz coordinates and returns it. */
+  private Block startPosition(int x, int z) {
+    return new Block(x, highestSolidY(x, z), z);
   }
 
   /** Given (x,z) coordinates, finds and returns the highest y so that (x,y,z) is a solid block. */
@@ -150,16 +153,18 @@ class World {
     int maxY = Generator.minElevation();
     int chunkX = x / Chunk.CHUNK_SIZE;
     int chunkZ = z / Chunk.CHUNK_SIZE;
-    for (Chunk chunk : chunkBlocks.keySet()) {
-      if (chunk.x != chunkX || chunk.z != chunkZ) {
-        continue;
-      }
-      for (Block block : chunkBlocks.get(chunk)) {
-        if (block.x != x || block.z != z) {
+    synchronized(blocksLock) {
+      for (Chunk chunk : chunkBlocks.keySet()) {
+        if (chunk.x != chunkX || chunk.z != chunkZ) {
           continue;
         }
-        if (block.y > maxY) {
-          maxY = block.y;
+        for (Block block : chunkBlocks.get(chunk)) {
+          if (block.x != x || block.z != z) {
+            continue;
+          }
+          if (block.y > maxY) {
+            maxY = block.y;
+          }
         }
       }
     }
@@ -168,6 +173,10 @@ class World {
 
   private List<Block> shownBlocks(List<Block> blocks) {
     List<Block> result = new ArrayList<Block>();
+    if (blocks == null) {
+      return result;
+    }
+
     for (Block block : blocks) {
       if (exposed(block)) {
         result.add(block);
@@ -201,9 +210,7 @@ class World {
             continue;
           }
           Chunk chunk = center.plus(new Chunk(dx, dy, dz));
-          if (chunkBlocks.keySet().contains(chunk)) {
-            result.add(chunk);
-          }
+          result.add(chunk);
         }
       }
     }
@@ -222,10 +229,17 @@ class World {
           try {
             ChunkChange cc = chunkChanges.takeFirst();
             if (cc instanceof ChunkLoad) {
-              ChunkLoad cl = (ChunkLoad) cc;
-              squareMesh.load(cl.chunk, shownBlocks(chunkBlocks.get(cl.chunk)), blocks);
+              Chunk chunk = ((ChunkLoad) cc).chunk;
+              synchronized(blocksLock) {
+                loadChunk(chunk);
+                squareMesh.load(chunk, shownBlocks(chunkBlocks.get(chunk)), blocks);
+              }
             } else if (cc instanceof ChunkUnload) {
-              squareMesh.unload(((ChunkUnload) cc).chunk);
+              Chunk chunk = ((ChunkUnload) cc).chunk;
+              synchronized(blocksLock) {
+                unloadChunk(chunk);
+                squareMesh.unload(chunk);
+              }
             } else {
               throw new RuntimeException("Unknown ChunkChange subtype: " + cc.getClass().getName());
             }
@@ -250,10 +264,12 @@ class World {
 
     performance.startPhysics();
     Point3 eyePosition = null;
-    // Do several physics iterations per frame to avoid falling through the floor when dt is large.
-    for (int i = 0; i < PHYSICS_ITERATIONS_PER_FRAME; ++i) {
-      // Physics needs all blocks in the world to compute collisions.
-      eyePosition = physics.updateEyePosition(steve, dt / PHYSICS_ITERATIONS_PER_FRAME, blocks);
+    synchronized(blocksLock) {
+      // Do several physics iterations per frame to avoid falling through the floor when dt is large.
+      for (int i = 0; i < PHYSICS_ITERATIONS_PER_FRAME; ++i) {
+        // Physics needs all blocks in the world to compute collisions.
+        eyePosition = physics.updateEyePosition(steve, dt / PHYSICS_ITERATIONS_PER_FRAME, blocks);
+      }
     }
     performance.endPhysics();
 
@@ -272,14 +288,17 @@ class World {
     float fps = performance.fps();
     if (fps > 0.0f) {
       Point3 position = steve.position();
-      String status = String.format("%f FPS (%f-%f), " +
-          "(%f, %f, %f), " +
-          "%d / %d chunks, %d blocks, " +
-          "physics: %dms, render: %dms",
-          fps, performance.minFps(), performance.maxFps(),
-          position.x, position.y, position.z,
-          squareMesh.chunksLoaded(), chunkBlocks.keySet().size(), blocks.size(),
-          performance.physicsSpent(), performance.renderSpent());
+      String status;
+      synchronized(blocksLock) {
+        status = String.format("%f FPS (%f-%f), " +
+                "(%f, %f, %f), " +
+                "%d / %d chunks, %d blocks, " +
+                "physics: %dms, render: %dms",
+            fps, performance.minFps(), performance.maxFps(),
+            position.x, position.y, position.z,
+            squareMesh.chunksLoaded(), chunkBlocks.keySet().size(), blocks.size(),
+            performance.physicsSpent(), performance.renderSpent());
+      }
       Log.i(TAG, status);
     }
     performance.done();

@@ -19,7 +19,7 @@ class GlRenderer implements GLSurfaceView.Renderer {
   GlRenderer(Resources resources) {
     this.resources = resources;
     Log.i(TAG, "-----------------------------------------------------------------");
-    world = new World(160, 160);
+    world = new World();
   }
 
   @Override
