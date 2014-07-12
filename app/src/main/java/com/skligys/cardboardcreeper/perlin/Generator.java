@@ -27,8 +27,12 @@ public class Generator {
     return MIN_FOREST_HILLS_Y;
   }
 
-  public static int maxElevation() {
-    return MAX_FOREST_HILLS_Y;
+  public static int minChunkY() {
+    return MIN_FOREST_HILLS_Y / Chunk.CHUNK_SIZE;
+  }
+
+  public static int maxChunkY() {
+    return (MAX_FOREST_HILLS_Y + Chunk.CHUNK_SIZE - 1) / Chunk.CHUNK_SIZE;
   }
 
   /** Generates blocks for a single chunk. */

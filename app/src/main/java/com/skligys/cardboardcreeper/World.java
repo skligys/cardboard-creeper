@@ -107,11 +107,11 @@ class World {
   private List<Chunk> preloadedChunks() {
     // Generate a stack of chunks around the starting position (8, 8), other chunks will be loaded
     // in the background.
-    int minYChunk = Generator.minElevation() / Chunk.CHUNK_SIZE;
-    int maxYChunk = (Generator.maxElevation() + Chunk.CHUNK_SIZE - 1) / Chunk.CHUNK_SIZE;
+    int minChunkY = Generator.minChunkY();
+    int maxChunkY = Generator.maxChunkY();
 
     List<Chunk> preloadedChunks = new ArrayList<Chunk>();
-    for (int y = minYChunk; y <= maxYChunk; ++y) {
+    for (int y = minChunkY; y <= maxChunkY; ++y) {
       preloadedChunks.add(new Chunk(0, y, 0));
     }
     return preloadedChunks;
@@ -149,6 +149,9 @@ class World {
 
   /** Returns chunks within some radius of center, but only those containing any blocks. */
   private Set<Chunk> neighboringChunks(Chunk center) {
+    int minChunkY = Generator.minChunkY();
+    int maxChunkY = Generator.maxChunkY();
+
     Set<Chunk> result = new HashSet<Chunk>();
     for (int dx = -SHOWN_CHUNK_RADIUS; dx <= SHOWN_CHUNK_RADIUS; ++dx) {
       for (int dy = -SHOWN_CHUNK_RADIUS; dy <= SHOWN_CHUNK_RADIUS; ++dy) {
@@ -157,6 +160,9 @@ class World {
             continue;
           }
           Chunk chunk = center.plus(new Chunk(dx, dy, dz));
+          if (chunk.y < minChunkY || chunk.y > maxChunkY) {
+            continue;
+          }
           result.add(chunk);
         }
       }
