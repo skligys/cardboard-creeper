@@ -44,5 +44,4 @@ public class MainActivity extends Activity {
       throw new RuntimeException("Your device does not support OpenGL ES 2.0");
     }
   }
-
 }

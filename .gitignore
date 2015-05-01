@@ -18,4 +18,5 @@ gen/
 # Android Studio
 .gradle
 /.idea/workspace.xml
-build/
+/build
+/captures
